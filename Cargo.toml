@@ -1,0 +1,15 @@
+[package]
+name = "wgpu_canvas"
+version = "0.1.0"
+edition = "2021"
+description = "wgpu renderer api for a 2d canvas, wgpu_lyon for shapes, glyhpon for text, ... for images"
+license = "BSD-3-Clause"
+repository = "https://github.com/CalebCouch/wgpu_canvas.git"
+
+
+[dependencies]
+lyon_tessellation = "1.0.15"
+lyon_path = "1.0.6"
+wgpu = "22.1.0"
+wgpu_lyon = "1.0.0"
+glyphon = "0.6.0"
