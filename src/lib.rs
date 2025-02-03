@@ -35,39 +35,47 @@ use lyon_tessellation::{
 
 
 use lyon_path::{
-    builder::PathBuilder,
+    builder::{BorderRadii, PathBuilder},
     Winding
 };
 
-use lyon_tessellation::math::{Box2D, Point};
+use lyon_tessellation::math::{Vector, Angle, Point, Box2D};
 
-use wgpu_lyon::{
-    DefaultVertex,
-    DefaultVertexConstructor,
-    LyonRenderer
-};
+use wgpu_lyon::LyonRenderer;
 
 //How precise the circles are
 const TOLERANCE: f32 = 0.0001;
 
 pub enum Shape {
-    //Triangle(Vec2, Vec2, Vec2),
-    //Text(&'static str, u32, String),//text, scale, font
-  //RoundedRectangle(u32, u32, u32),
+  //Text(&'static str, u32, String),//text, scale, font
+    //RoundedRectangle(u32, u32, u32),
+  //Triangle(Vec2, Vec2, Vec2),
     Rectangle(u32, u32),
-  //Circle(u32)
+    Circle(u32)
 }
 
 pub struct Mesh {
     pub shape: Shape,
     pub offset: (u32, u32),
-    //pub color: Color
+    pub color: &'static str
 }
 
 impl Mesh {
-    fn prepare(
-        &self, builder: &mut FillBuilder
+    fn vector(w: f32, h: f32, r: u32) -> Vector {
+        Vector::new(r as f32 / w, r as f32 / h)
+    }
+    fn point(w: f32, h: f32, x: u32, y: u32) -> Point {
+        Point::new(-1.0+(x as f32 / w), 1.0-(y as f32 / h))
+    }
+
+    fn build(
+        &self, builder: &mut FillBuilder,
+        width: f32, height: f32
     ) {
+        let color_error = "Color was not a Hex Value";
+        let color: [f32; 3] = hex::decode(self.color).expect(color_error).into_iter().map(|u|
+            u as f32 / 255.0
+        ).collect::<Vec<f32>>().try_into().expect(color_error);
         match self.shape {
           //Shape::Text(text, s, font) => {
           //    let p = lr(s);
@@ -79,40 +87,39 @@ impl Mesh {
           //Shape::RoundedRectangle(w, h, r) => {
           //    builder.add_rounded_rectangle(
           //        &Box2D::new(
-          //            ctp(self.offset.0, self.offset.1),
-          //            ctp(self.offset.0+w, self.offset.1+h)
+          //            Point::new(Self::px(lw, self.offset.0), Self::py(lh, self.offset.1)),
+          //            Point::new(Self::px(lw, self.offset.0+w), Self::py(lh, self.offset.1+h)),
           //        ),
-          //        &BorderRadii::new(0.01),
+          //        &BorderRadii::new(0.1),
           //        Winding::Positive,
-          //        &[self.color.r as f32, self.color.g as f32, self.color.b as f32]
+          //        &color
           //    )
           //},
             Shape::Rectangle(w, h) => {
                 builder.add_rectangle(
                     &Box2D::new(
-                        Point::new(0.1, 0.1),
-                        Point::new(0.2, 0.2)
+                        Self::point(width, height, self.offset.0, self.offset.1),
+                        Self::point(width, height, self.offset.0+w, self.offset.1+h),
                     ),
                     Winding::Positive,
-                    &[0.0, 0.0, 1.0]
+                    &color
                 );
             },
-          //Shape::Circle(r) => {
-          //    builder.add_ellipse(
-          //        ctp(self.offset.0+r, self.offset.1+r),
-          //        lr(r),
-          //        Angle::radians(0.0),
-          //        Winding::Positive,
-          //        &[self.color.r as f32, self.color.g as f32, self.color.b as f32]
-          //    )
-          //}
+            Shape::Circle(r) => {
+                builder.add_ellipse(
+                    Self::point(width, height, self.offset.0+r, self.offset.1+r),
+                    Self::vector(width, height, r),
+                    Angle::radians(0.0),
+                    Winding::Positive,
+                    &color
+                )
+            }
         }
     }
 }
 
-
 pub struct CanvasRenderer {
-    lyon_renderer: LyonRenderer<DefaultVertex>,
+    lyon_renderer: LyonRenderer,
 }
 
 impl CanvasRenderer {
@@ -134,16 +141,20 @@ impl CanvasRenderer {
         &mut self,
         device: &Device,
         queue: &Queue,
-        meshes: Vec<Mesh>
+        meshes: Vec<Mesh>,
+        width: f32,
+        height: f32,
     ) {
         if meshes.is_empty() {return;}
 
-        let callback = |builder: &mut FillBuilder| meshes.iter().for_each(|m| m.prepare(builder));
+        let callbacks = meshes.into_iter().map(|m|
+            move |builder: &mut FillBuilder| {m.build(builder, width, height)}
+        ).collect::<Vec<_>>();
 
         let mut fill_options = FillOptions::default();
         fill_options.tolerance = TOLERANCE;
 
-        self.lyon_renderer.prepare(device, queue, &fill_options, callback);
+        self.lyon_renderer.prepare(device, queue, &fill_options, callbacks);
     }
 
     /// Render using caller provided render pass.

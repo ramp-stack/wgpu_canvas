@@ -463,6 +463,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "hex"
+version = "0.4.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7f24254aa9a54b5c858eaee2f5bccdb46aaf0e486a595ed5fd8f86ba55232a70"
+
+[[package]]
 name = "hexf-parse"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1264,6 +1270,8 @@ name = "wgpu_canvas"
 version = "0.1.0"
 dependencies = [
  "glyphon",
+ "hex",
+ "log",
  "lyon_path",
  "lyon_tessellation",
  "wgpu",
@@ -1272,7 +1280,9 @@ dependencies = [
 
 [[package]]
 name = "wgpu_lyon"
-version = "0.1.0"
+version = "1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0799a1c565d6798387feb0c9a1ffc8f464d5ac2879f3905937332a8f8ef76a27"
 dependencies = [
  "bytemuck",
  "lyon_tessellation",
