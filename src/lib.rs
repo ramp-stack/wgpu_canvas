@@ -7,161 +7,90 @@ use wgpu::{
     Queue,
 };
 
-use lyon_tessellation::{
-    FillBuilder,
-    FillOptions
-};
-use lyon_path::{
-    builder::PathBuilder,
-    Winding
-};
-use lyon_tessellation::math::{Vector, Angle, Point, Box2D};
-use wgpu_lyon::{LyonRenderer, Shape as LyonShape};
-use wgpu_image::{ImageRenderer, Image, image::RgbaImage};
+use wgpu_cyat::{CyatRenderer, ShapeArea, DefaultAttributes};
+use wgpu_image::{ImageRenderer, Image, image::RgbaImage, ImageAttributes, ImageAtlas, ImageKey};
+use glyphat::{TextRenderer, TextArea, FontAtlas, FontKey};
 
-mod text;
-use text::{TextRenderer, Text};
+mod shape;
+use shape::{CanvasShapeBuilder};
 
-//How precise the circles are
-const TOLERANCE: f32 = 0.0001;
+pub use wgpu_image::image;
+pub use shape::{DrawCommand, Shape};
+pub use glyphat::{Text};
 
-type Callback = Box<dyn Fn(&mut FillBuilder) + 'static>;
-
-pub enum Shape {
-    Rectangle(u32, u32),
-    Circle(u32)
+pub enum ItemType {
+    Shape(Shape, &'static str, Option<u32>),//Shape, Color, Stroke Width
+    Text(Text),//Text
+    Image(Shape, ImageKey)//Shape, Image
 }
 
-impl Shape {
-    pub fn size(&self) -> (u32, u32) {
-        match self {
-            Shape::Rectangle(w, h) => (*w, *h),
-            Shape::Circle(r) => (r*2, r*2)
-        }
-    }
-
-    fn vector(w: f32, h: f32, r: u32) -> Vector {
-        Vector::new(r as f32 / w, r as f32 / h)
-    }
-
-    fn point(w: f32, h: f32, x: u32, y: u32) -> Point {
-        Point::new(-1.0+(x as f32 / w), 1.0-(y as f32 / h))
-    }
-
-    pub fn build(self, width: f32, height: f32, offset: (u32, u32), attrs: &'static [f32]) -> Callback {
-        match self {
-            Shape::Rectangle(w, h) => {
-                Box::new(move |builder: &mut FillBuilder| {
-                    builder.add_rectangle(
-                        &Box2D::new(
-                            Self::point(width, height, offset.0, offset.1),
-                            Self::point(width, height, offset.0+w, offset.1+h),
-                        ),
-                        Winding::Positive,
-                        attrs
-                    );
-                })
-            },
-            Shape::Circle(r) => {
-                Box::new(move |builder: &mut FillBuilder| {
-                    builder.add_ellipse(
-                        Self::point(width, height, offset.0+r, offset.1+r),
-                        Self::vector(width, height, r),
-                        Angle::radians(0.0),
-                        Winding::Positive,
-                        attrs
-                    );
-                })
-            }
+impl ItemType {
+    pub fn size(&self, atlas: &mut CanvasAtlas) -> (u32, u32) {
+        match &self {
+            ItemType::Text(text) => atlas.messure_text(text),
+            ItemType::Shape(shape, _, _) | ItemType::Image(shape, _) => shape.size(),
         }
     }
 }
 
-pub enum MeshType<'a> {
-    Shape(Shape, &'a str),//Shape, Color
-    Text(&'a str, Option<u32>, &'a str, &'a [u8], f32, f32),//color, width_opt, text, font, size, line_height
-    Image(Shape, RgbaImage)//Shape, Image
-}
+pub struct CanvasItem(pub ItemType, pub u32, pub (u32, u32), pub (u32, u32, u32, u32));
 
-pub struct Context<'a> {
-    text_renderer: &'a mut TextRenderer
-}
-
-impl<'a> Context<'a> {
-    pub fn messure_text(&mut self, text: &Text) -> (u32, u32) {
-        self.text_renderer.messure_text(text)
-    }
-}
-
-pub struct Mesh<'a> {
-    pub mesh_type: MeshType<'a>,
-    pub offset: (u32, u32),
-    pub z_index: u32,
-    pub bound: (u32, u32, u32, u32)
-}
-
-impl<'a> Mesh<'a> {
-    fn point(w: f32, h: f32, x: u32, y: u32) -> Point {
-        Point::new(-1.0+(x as f32 / w), 1.0-(y as f32 / h))
+impl CanvasItem {
+    pub fn size(&self, ctx: &mut CanvasAtlas) -> (u32, u32) {
+        self.0.size(ctx)
     }
 
-    pub fn size(&self, ctx: &mut Context) -> (u32, u32) {
-        match &self.mesh_type {
-            MeshType::Text(color, width_opt, text, font, size, line_height) => {
-                ctx.messure_text(
-                    &Text::new(0, 0, *width_opt, text, color, font, *size, *line_height, 0, (0, 0, 0, 0))
-                )
-            },
-            MeshType::Shape(shape, _) | MeshType::Image(shape, _) => shape.size(),
-        }
+    fn point(w: f32, h: f32, x: u32, y: u32) -> [f32; 2] {
+        [-1.0+(x as f32 / w), 1.0-(y as f32 / h)]
     }
 
     fn build(
-        self, width: f32, height: f32
-    ) -> (Option<Text<'a>>, (Option<LyonShape>, Option<Image>)) {
-        match self.mesh_type {
-            MeshType::Text(color, width_opt, text, font, size, line_height) => {
+        mut self, width: f32, height: f32, scale_factor: f64
+    ) -> (Option<TextArea>, (Option<ShapeArea>, Option<Image>)) {
+        let s = |u: u32| (u as f64 * scale_factor) as u32;
+        self.3 = (s(self.3.0), s(self.3.1), s(self.3.2), s(self.3.3));
+        match self.0 {
+            ItemType::Text(text) => {
                 (
-                    Some(Text::new(self.offset.0, self.offset.1, width_opt, text, color, font, size, line_height, self.z_index, self.bound)),
+                    Some(TextArea::new(text, self.1, self.2, self.3)),
                     (
                         None,
                         None
                     )
                 )
             },
-            MeshType::Shape(shape, color) => {
+            ItemType::Shape(shape, color, stroke_width) => {
                 let ce = "Color was not a Hex Value";
-                let color: [f32; 3] = hex::decode(color).expect(ce).into_iter().map(|u| {
-                    u as f32 / 255.0
-                }).collect::<Vec<f32>>().try_into().expect(ce);
-                let z = self.z_index as f32 / u32::MAX as f32;
-                let attrs = vec![color[0], color[1], color[2], z].leak();
+                let a = DefaultAttributes{
+                    color: hex::decode(color).expect(ce).into_iter().map(|u| {
+                        u as f32 / 255.0
+                    }).collect::<Vec<f32>>().try_into().expect(ce),
+                    z: self.1 as f32 / u32::MAX as f32
+                };
                 (
                     None,
                     (
-                        Some(LyonShape{
-                            constructor: shape.build(width, height, self.offset, attrs),
-                            bound: self.bound
-                        }),
+                        Some(ShapeArea(CanvasShapeBuilder::new(
+                            shape, stroke_width, a, self.2, width, height
+                        ).into(), self.3)),
                         None
                     )
                 )
             },
-            MeshType::Image(shape, image) => {
-                let offset = Self::point(width, height, self.offset.0, self.offset.1).to_array();
+            ItemType::Image(shape, key) => {
                 let size = shape.size();
-                let end = Self::point(width, height, self.offset.0+size.0, self.offset.1+size.1);
-                let z = self.z_index as f32 / u32::MAX as f32;
-                let attrs = vec![offset[0], offset[1], end.x, end.y, z].leak();
+                let a = ImageAttributes{
+                    start: Self::point(width, height, self.2.0, self.2.1),
+                    end: Self::point(width, height, self.2.0+size.0, self.2.1+size.1),
+                    z: self.1 as f32 / u32::MAX as f32
+                };
                 (
                     None,
                     (
                         None,
-                        Some(Image{
-                            shape_constructor: shape.build(width, height, self.offset, attrs),
-                            bound: self.bound,
-                            image
-                        })
+                        Some(Image(CanvasShapeBuilder::new(
+                            shape, None, a, self.2, width, height
+                        ).into(), self.3, key))
                     )
                 )
             }
@@ -169,10 +98,40 @@ impl<'a> Mesh<'a> {
     }
 }
 
+pub struct CanvasAtlas {
+    image: ImageAtlas,
+    font: FontAtlas,
+}
+
+impl Default for CanvasAtlas {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl CanvasAtlas {
+    pub fn new() -> Self {
+        CanvasAtlas{
+            image: ImageAtlas::new(),
+            font: FontAtlas::new()
+        }
+    }
+
+    pub fn add_image(&mut self, image: RgbaImage) -> ImageKey {self.image.add(image)}
+    pub fn remove_image(&mut self, key: &ImageKey) {self.image.remove(key)}
+    pub fn contains_image(&mut self, key: &ImageKey) -> bool {self.image.contains(key)}
+
+    pub fn add_font(&mut self, font: Vec<u8>) -> FontKey {self.font.add(font)}
+    pub fn remove_font(&mut self, key: &FontKey) {self.font.remove(key)}
+    pub fn contains_font(&mut self, key: &FontKey) -> bool {self.font.contains(key)}
+
+    pub fn messure_text(&mut self, t: &Text) -> (u32, u32) {self.font.messure_text(t)}
+}
+
 pub struct CanvasRenderer {
-    lyon_renderer: LyonRenderer,
+    cyat_renderer: CyatRenderer,
     text_renderer: TextRenderer,
-    image_renderer: ImageRenderer
+    image_renderer: ImageRenderer,
 }
 
 impl CanvasRenderer {
@@ -185,7 +144,7 @@ impl CanvasRenderer {
         depth_stencil: Option<DepthStencilState>,
     ) -> Self {
         CanvasRenderer{
-            lyon_renderer: LyonRenderer::new(device, texture_format, multisample, depth_stencil.clone()),
+            cyat_renderer: CyatRenderer::new(device, texture_format, multisample, depth_stencil.clone()),
             text_renderer: TextRenderer::new(queue, device, texture_format, multisample, depth_stencil.clone()),
             image_renderer: ImageRenderer::new(device, texture_format, multisample, depth_stencil)
         }
@@ -200,47 +159,47 @@ impl CanvasRenderer {
         queue: &Queue,
         physical_width: u32,
         physical_height: u32,
+        scale_factor: f64,
         logical_width: f32,
         logical_height: f32,
-        meshes: Vec<Mesh>,
+        canvas_atlas: &mut CanvasAtlas,
+        items: Vec<CanvasItem>,
     ) {
-        if meshes.is_empty() {return;}
+        if items.is_empty() {return;}
 
-        let (text, shapes_images): (Vec<_>, Vec<_>) = meshes.into_iter().map(|m|
-            m.build(logical_width / 2.0, logical_height / 2.0)
+        let (text_areas, shapes_images): (Vec<_>, Vec<_>) = items.into_iter().map(|m|
+            m.build(logical_width / 2.0, logical_height / 2.0, scale_factor)
         ).unzip();
         let (shapes, images): (Vec<_>, Vec<_>) = shapes_images.into_iter().unzip();
 
-        let text: Vec<_> = text.into_iter().flatten().collect();
+        let text_areas: Vec<_> = text_areas.into_iter().flatten().collect();
         let shapes: Vec<_> = shapes.into_iter().flatten().collect();
         let images: Vec<_> = images.into_iter().flatten().collect();
 
-        let mut fill_options = FillOptions::default();
-        fill_options.tolerance = TOLERANCE;
 
-        self.lyon_renderer.prepare(device, queue, &fill_options, shapes);
+        self.cyat_renderer.prepare(device, queue, shapes);
 
         self.text_renderer.prepare(
-            device,
             queue,
+            device,
             physical_width,
             physical_height,
-            text
+            &mut canvas_atlas.font,
+            text_areas
         );
 
-        self.image_renderer.prepare(device, queue, &fill_options, images);
+        self.image_renderer.prepare(
+            queue,
+            device,
+            &mut canvas_atlas.image,
+            images
+        );
     }
 
     /// Render using caller provided render pass.
     pub fn render<'a>(&'a self, render_pass: &mut RenderPass<'a>) {
-        self.lyon_renderer.render(render_pass);
+        self.cyat_renderer.render(render_pass);
         self.text_renderer.render(render_pass);
         self.image_renderer.render(render_pass);
-    }
-
-    pub fn context(&mut self) -> Context {
-        Context{
-            text_renderer: &mut self.text_renderer
-        }
     }
 }

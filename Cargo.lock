@@ -241,6 +241,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d0a5c400df2834b80a4c3327b3aad3a4c4cd4de0629063962b03235697506a28"
 
 [[package]]
+name = "cyat"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3a20e7ee406a6274ce8a27f867a09251619e165f2c3cbea2f36c54a9aa522f45"
+dependencies = [
+ "bytemuck",
+ "lyon_path",
+ "lyon_tessellation",
+]
+
+[[package]]
 name = "d3d12"
 version = "22.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -411,6 +422,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2c4ee00b289aba7a9e5306d57c2d05499b2e5dc427f84ac708bd2c090212cf3e"
 dependencies = [
  "gl_generator",
+]
+
+[[package]]
+name = "glyphat"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0524f2bec4c4c29faf8b9c31bf7e5aa77ab009268dfbbff81741bd3703ad098c"
+dependencies = [
+ "glyphon",
+ "hex",
+ "wgpu",
 ]
 
 [[package]]
@@ -1350,38 +1372,49 @@ dependencies = [
 
 [[package]]
 name = "wgpu_canvas"
-version = "0.1.1"
+version = "2.0.0"
 dependencies = [
- "glyphon",
+ "glyphat",
  "hex",
  "lyon_path",
  "lyon_tessellation",
  "wgpu",
+ "wgpu_cyat",
  "wgpu_image",
- "wgpu_lyon",
+]
+
+[[package]]
+name = "wgpu_cyat"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8cb68a00b5f34e42eea6cdfc453973a8285be42b0ca7aeaacb07ab9dee5541f8"
+dependencies = [
+ "bytemuck",
+ "cyat",
+ "wgpu",
+ "wgpu_dyn_buffer",
+]
+
+[[package]]
+name = "wgpu_dyn_buffer"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "74e1115ecf4fd97cc5d5b983ee31bcf5e26a16bfdb7aecab5f9dfee4da23e2c3"
+dependencies = [
+ "wgpu",
 ]
 
 [[package]]
 name = "wgpu_image"
-version = "1.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dfad031b9e532eb7007bfb121e65cd3596c2bb60178b1aeeee4add98de8d3f4b"
-dependencies = [
- "bytemuck",
- "image",
- "lyon_tessellation",
- "wgpu",
-]
-
-[[package]]
-name = "wgpu_lyon"
 version = "2.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "07174385b7361e01bccaf8a34ca2e9d2151c4af2eedd61502a4895e475402df8"
+checksum = "548cbba6edfae582072a93764dcd83f9f49a8916cd7c3d1812fa40551f383967"
 dependencies = [
  "bytemuck",
- "lyon_tessellation",
+ "cyat",
+ "image",
  "wgpu",
+ "wgpu_dyn_buffer",
 ]
 
 [[package]]
