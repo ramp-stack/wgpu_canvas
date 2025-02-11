@@ -427,6 +427,8 @@ dependencies = [
 [[package]]
 name = "glyphat"
 version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0524f2bec4c4c29faf8b9c31bf7e5aa77ab009268dfbbff81741bd3703ad098c"
 dependencies = [
  "glyphon",
  "hex",
@@ -770,6 +772,15 @@ name = "once_cell"
 version = "1.20.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1261fe7e33c73b354eab43b1273a57c8f967d0391e80353e51f764ac02cf6775"
+
+[[package]]
+name = "ordered-float"
+version = "4.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7bb71e1b3fa6ca1c61f383464aaf2bb0e2f8e772a1f01d486832464de363b951"
+dependencies = [
+ "num-traits",
+]
 
 [[package]]
 name = "parking_lot"
@@ -1370,11 +1381,10 @@ dependencies = [
 
 [[package]]
 name = "wgpu_canvas"
-version = "2.0.0"
+version = "2.0.1"
 dependencies = [
  "glyphat",
  "hex",
- "log",
  "lyon_path",
  "lyon_tessellation",
  "wgpu",
@@ -1384,10 +1394,13 @@ dependencies = [
 
 [[package]]
 name = "wgpu_cyat"
-version = "1.0.0"
+version = "1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "05a2b14d4e9a3b8127ca26ea7c0d26efd341ab7deca8431531390850834f4375"
 dependencies = [
  "bytemuck",
  "cyat",
+ "ordered-float",
  "wgpu",
  "wgpu_dyn_buffer",
 ]
