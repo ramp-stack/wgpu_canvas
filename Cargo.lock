@@ -427,8 +427,6 @@ dependencies = [
 [[package]]
 name = "glyphat"
 version = "1.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0524f2bec4c4c29faf8b9c31bf7e5aa77ab009268dfbbff81741bd3703ad098c"
 dependencies = [
  "glyphon",
  "hex",
@@ -1376,6 +1374,7 @@ version = "2.0.0"
 dependencies = [
  "glyphat",
  "hex",
+ "log",
  "lyon_path",
  "lyon_tessellation",
  "wgpu",
@@ -1386,8 +1385,6 @@ dependencies = [
 [[package]]
 name = "wgpu_cyat"
 version = "1.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8cb68a00b5f34e42eea6cdfc453973a8285be42b0ca7aeaacb07ab9dee5541f8"
 dependencies = [
  "bytemuck",
  "cyat",

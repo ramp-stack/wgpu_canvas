@@ -50,9 +50,13 @@ impl CanvasItem {
         let s = |u: u32| (u as f64 * scale_factor) as u32;
         self.3 = (s(self.3.0), s(self.3.1), s(self.3.2), s(self.3.3));
         match self.0 {
-            ItemType::Text(text) => {
+            ItemType::Text(mut text) => {
+                text.size = s(text.size);
+                text.line_height = s(text.line_height);
+                let p = |u: u32| (u as f64 * scale_factor) as u32;
+
                 (
-                    Some(TextArea::new(text, self.1, self.2, self.3)),
+                    Some(TextArea::new(text, self.1, (p(self.2.0), p(self.2.1)), self.3)),
                     (
                         None,
                         None
@@ -175,7 +179,6 @@ impl CanvasRenderer {
         let text_areas: Vec<_> = text_areas.into_iter().flatten().collect();
         let shapes: Vec<_> = shapes.into_iter().flatten().collect();
         let images: Vec<_> = images.into_iter().flatten().collect();
-
 
         self.cyat_renderer.prepare(device, queue, shapes);
 
