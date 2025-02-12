@@ -242,9 +242,9 @@ checksum = "d0a5c400df2834b80a4c3327b3aad3a4c4cd4de0629063962b03235697506a28"
 
 [[package]]
 name = "cyat"
-version = "1.0.0"
+version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3a20e7ee406a6274ce8a27f867a09251619e165f2c3cbea2f36c54a9aa522f45"
+checksum = "86dbf371869bf2630c4983c8317203345116323f4b9d10541e504978907a414d"
 dependencies = [
  "bytemuck",
  "lyon_path",
@@ -426,7 +426,9 @@ dependencies = [
 
 [[package]]
 name = "glyphat"
-version = "1.0.0"
+version = "1.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ff54e690f16fa7b91a3e30f1c45fc7a4d96969546caafb11ebf8bcdcc2a43aae"
 dependencies = [
  "glyphon",
  "hex",
@@ -1379,7 +1381,7 @@ dependencies = [
 
 [[package]]
 name = "wgpu_canvas"
-version = "2.1.1"
+version = "2.1.2"
 dependencies = [
  "glyphat",
  "hex",
@@ -1392,9 +1394,9 @@ dependencies = [
 
 [[package]]
 name = "wgpu_cyat"
-version = "1.1.0"
+version = "1.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "05a2b14d4e9a3b8127ca26ea7c0d26efd341ab7deca8431531390850834f4375"
+checksum = "bf5acbb13cb12335b174c8e8fbe94a586a3eb4d62c6876b13cc639bd2ccd8c07"
 dependencies = [
  "bytemuck",
  "cyat",
@@ -1414,9 +1416,9 @@ dependencies = [
 
 [[package]]
 name = "wgpu_image"
-version = "2.0.0"
+version = "2.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "548cbba6edfae582072a93764dcd83f9f49a8916cd7c3d1812fa40551f383967"
+checksum = "168f4c8c935449c625faba2711cf18ede3168dd4407b085e12f2d5a4a610ef95"
 dependencies = [
  "bytemuck",
  "cyat",

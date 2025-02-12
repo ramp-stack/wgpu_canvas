@@ -41,7 +41,7 @@ pub struct CanvasShapeBuilder<A: Attributes> {
 }
 
 impl<A: Attributes> CanvasShapeBuilder<A> {
-    pub const TOLERANCE: f32 = 0.0001;
+    pub const TOLERANCE: f32 = 0.0005;
 
     pub fn new(
         shape: Shape,
