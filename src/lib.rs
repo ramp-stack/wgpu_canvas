@@ -20,7 +20,7 @@ pub use glyphat::{Text, FontKey};
 
 #[derive(Clone, Debug)]
 pub enum ItemType {
-    Shape(Shape, &'static str, Option<u32>),//Shape, Color, Stroke Width
+    Shape(Shape, &'static str, Option<u16>),//Shape, Color, Stroke Width
     Text(Text),//Text
     Image(Shape, ImageKey)//Shape, Image
 }

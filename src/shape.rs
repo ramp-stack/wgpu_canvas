@@ -33,7 +33,7 @@ impl Shape {
 
 pub struct CanvasShapeBuilder<A: Attributes> {
     shape: Shape,
-    pub stroke_width: Option<u32>,
+    pub stroke_width: Option<u16>,
     attributes: A,
     offset: (u32, u32),
     width: f32,
@@ -45,7 +45,7 @@ impl<A: Attributes> CanvasShapeBuilder<A> {
 
     pub fn new(
         shape: Shape,
-        stroke_width: Option<u32>,
+        stroke_width: Option<u16>,
         attributes: A,
         offset: (u32, u32),
         width: f32,
@@ -107,7 +107,7 @@ impl<A: Attributes> CanvasShapeBuilder<A> {
 
 impl<A: Attributes> From<CanvasShapeBuilder<A>> for ShapeBuilder<A> {
     fn from(c: CanvasShapeBuilder<A>) -> Self {
-        let stroke_width = c.stroke_width;
+        let stroke_width = c.stroke_width.map(|sw| sw as f32 / u16::MAX as f32);
         ShapeBuilder::new(c.build_shape(), stroke_width, CanvasShapeBuilder::<A>::TOLERANCE)
     }
 }
