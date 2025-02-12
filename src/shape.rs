@@ -2,13 +2,14 @@ use wgpu_cyat::cyat::{ShapeBuilder, Attributes};
 use wgpu_cyat::cyat;
 
 #[allow(clippy::enum_variant_names)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub enum DrawCommand {
     QuadraticBezierTo(u32, u32, u32, u32), //x, y, ctrlx, ctrly
     CubicBezierTo(u32, u32, u32, u32, u32, u32), //x, y, ctrlx, ctrly, ctrlx2, ctrly2
     LineTo(u32, u32), //x, y
 }
 
+#[derive(Clone, Debug)]
 pub enum Shape {
     Draw(u32, u32, Vec<DrawCommand>),
     RoundedRectangle(u32, u32, u32),

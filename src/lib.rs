@@ -8,16 +8,17 @@ use wgpu::{
 };
 
 use wgpu_cyat::{CyatRenderer, ShapeArea, DefaultAttributes};
-use wgpu_image::{ImageRenderer, Image, image::RgbaImage, ImageAttributes, ImageAtlas, ImageKey};
-use glyphat::{TextRenderer, TextArea, FontAtlas, FontKey};
+use wgpu_image::{ImageRenderer, Image, image::RgbaImage, ImageAttributes, ImageAtlas};
+use glyphat::{TextRenderer, TextArea, FontAtlas};
 
 mod shape;
 use shape::{CanvasShapeBuilder};
 
-pub use wgpu_image::image;
+pub use wgpu_image::{image, ImageKey};
 pub use shape::{DrawCommand, Shape};
-pub use glyphat::{Text};
+pub use glyphat::{Text, FontKey};
 
+#[derive(Clone, Debug)]
 pub enum ItemType {
     Shape(Shape, &'static str, Option<u32>),//Shape, Color, Stroke Width
     Text(Text),//Text
@@ -33,7 +34,8 @@ impl ItemType {
     }
 }
 
-pub struct CanvasItem(pub ItemType, pub u32, pub (u32, u32), pub (u32, u32, u32, u32));
+#[derive(Clone, Debug)]
+pub struct CanvasItem(pub ItemType, pub u16, pub (u32, u32), pub (u32, u32, u32, u32));
 
 impl CanvasItem {
     pub fn size(&self, ctx: &mut CanvasAtlas) -> (u32, u32) {
