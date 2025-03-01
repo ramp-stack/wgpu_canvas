@@ -1,19 +1,16 @@
 [package]
 name = "wgpu_canvas"
-version = "3.0.0"
+version = "3.1.0"
 edition = "2021"
-description = "wgpu renderer api for a 2d canvas, wgpu_lyon for shapes, glyhpon for text, wgpu_image for images"
+description = "WGPU Renderer API for a 2D Canvas, Text, Color Shapes, Images"
 license = "BSD-3-Clause"
 repository = "https://github.com/CalebCouch/wgpu_canvas.git"
 
 
 [dependencies]
-lyon_tessellation = "1.0.15"
-lyon_path = "1.0.6"
 wgpu = "24.0.1"
-wgpu_cyat = "1.1.3"
-#wgpu_cyat = {path="../wgpu_cyat"}
-wgpu_image = "2.0.2"
-#wgpu_image = {path="../wgpu_image"}
-glyphat = "2.0.0"
 hex = "0.4.3"
+wgpu_dyn_buffer = "2.0.0"
+bytemuck = "1.21.0"
+glyphon = "0.8.0"
+image = "0.25.5"
