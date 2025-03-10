@@ -46,8 +46,8 @@ impl<V: Vertex> Vertex for ColorShapeVertex<V> {
 
 pub(crate) struct ColorShapeRenderer {
     ellipse_renderer: GenericColorRenderer<InnerColorShape<Ellipse>>,
-    rectangle_renderer: GenericColorRenderer<InnerColorShape<Rectangle>>,
-    rounded_rectangle_renderer: GenericColorRenderer<InnerColorShape<RoundedRectangle>>,
+    //rectangle_renderer: GenericColorRenderer<InnerColorShape<Rectangle>>,
+    //rounded_rectangle_renderer: GenericColorRenderer<InnerColorShape<RoundedRectangle>>,
 }
 
 impl ColorShapeRenderer {
@@ -59,12 +59,12 @@ impl ColorShapeRenderer {
         depth_stencil: Option<DepthStencilState>,
     ) -> Self {
         let ellipse_shader = device.create_shader_module(wgpu::include_wgsl!("color/ellipse.wgsl"));
-        let rectangle_shader = device.create_shader_module(wgpu::include_wgsl!("color/rectangle.wgsl"));
-        let rounded_rectangle_shader = device.create_shader_module(wgpu::include_wgsl!("color/rounded_rectangle.wgsl"));
+        //let rectangle_shader = device.create_shader_module(wgpu::include_wgsl!("color/rectangle.wgsl"));
+        //let rounded_rectangle_shader = device.create_shader_module(wgpu::include_wgsl!("color/rounded_rectangle.wgsl"));
         ColorShapeRenderer{
             ellipse_renderer: GenericColorRenderer::new(device, texture_format, multisample, depth_stencil.clone(), ellipse_shader),
-            rectangle_renderer: GenericColorRenderer::new(device, texture_format, multisample, depth_stencil.clone(), rectangle_shader),
-            rounded_rectangle_renderer: GenericColorRenderer::new(device, texture_format, multisample, depth_stencil.clone(), rounded_rectangle_shader),
+            //rectangle_renderer: GenericColorRenderer::new(device, texture_format, multisample, depth_stencil.clone(), rectangle_shader),
+            //rounded_rectangle_renderer: GenericColorRenderer::new(device, texture_format, multisample, depth_stencil.clone(), rounded_rectangle_shader),
         }
     }
 
@@ -93,16 +93,15 @@ impl ColorShapeRenderer {
         );
 
         self.ellipse_renderer.prepare(device, queue, width, height, el_areas);
-        self.rectangle_renderer.prepare(device, queue, width, height, rect_areas);
-        self.rounded_rectangle_renderer.prepare(device, queue, width, height, rrect_areas);
+        //self.rectangle_renderer.prepare(device, queue, width, height, rect_areas);
+        //self.rounded_rectangle_renderer.prepare(device, queue, width, height, rrect_areas);
     }
 
     /// Render using caller provided render pass.
     pub fn render(&self, render_pass: &mut RenderPass<'_>) {
-        //Rectangle must go first to prevent alphamaping to map to the background behind the rectangle
-        self.rectangle_renderer.render(render_pass);
+        //self.rectangle_renderer.render(render_pass);
         self.ellipse_renderer.render(render_pass);
-        self.rounded_rectangle_renderer.render(render_pass);
+        //self.rounded_rectangle_renderer.render(render_pass);
     }
 }
 

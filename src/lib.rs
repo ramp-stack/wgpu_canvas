@@ -37,7 +37,7 @@ pub struct CanvasAtlas {
 
 pub struct CanvasRenderer {
     color_shape_renderer: ColorShapeRenderer,
-    image_shape_renderer: ImageShapeRenderer,
+    //image_shape_renderer: ImageShapeRenderer,
     text_renderer: TextRenderer,
 }
 
@@ -52,7 +52,7 @@ impl CanvasRenderer {
     ) -> Self {
         CanvasRenderer{
             color_shape_renderer: ColorShapeRenderer::new(device, texture_format, multisample, depth_stencil.clone()),
-            image_shape_renderer: ImageShapeRenderer::new(device, texture_format, multisample, depth_stencil.clone()),
+            //image_shape_renderer: ImageShapeRenderer::new(device, texture_format, multisample, depth_stencil.clone()),
             text_renderer: TextRenderer::new(device, queue, texture_format, multisample, depth_stencil.clone()),
         }
     }
@@ -83,14 +83,14 @@ impl CanvasRenderer {
         );
 
         self.color_shape_renderer.prepare(device, queue, width, height, color_shapes);
-        self.image_shape_renderer.prepare(device, queue, width, height, &mut atlas.image, image_shapes);
+        //self.image_shape_renderer.prepare(device, queue, width, height, &mut atlas.image, image_shapes);
         self.text_renderer.prepare(device, queue, width, height, &mut atlas.font, texts);
     }
 
     /// Render using caller provided render pass.
     pub fn render<'a>(&'a self, render_pass: &mut RenderPass<'a>) {
         self.color_shape_renderer.render(render_pass);
-        self.image_shape_renderer.render(render_pass);
+        //self.image_shape_renderer.render(render_pass);
         self.text_renderer.render(render_pass);
     }
 }
