@@ -26,17 +26,16 @@ pub(crate) trait Vertex: std::fmt::Debug + bytemuck::Pod + bytemuck::Zeroable{
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
 pub(crate) struct ShapeVertex {
-    pub coords: [f32; 2],
+    pub uv: [f32; 2],
     pub position: [f32; 2],
     pub bound: [f32; 4],
-    pub stroke: f32,
     pub z_index: f32
 }
 
 impl Vertex for ShapeVertex {
     fn attributes() -> Vec<VertexFormat> {
         vec![
-            VertexFormat::Float32x2, VertexFormat::Float32x2, VertexFormat::Float32x4, VertexFormat::Float32, VertexFormat::Float32
+            VertexFormat::Float32x2, VertexFormat::Float32x2, VertexFormat::Float32x4, VertexFormat::Float32
         ]
     }
 }
@@ -64,50 +63,45 @@ impl Shape for GenericShape {
         let x2 = (area.offset.0+self.size.0) as f32;
         let y2 = (area.offset.1+self.size.1) as f32;
 
-        let size = [(self.size.0 as f32/2.0).ceil(), (self.size.1 as f32/2.0).ceil()];
+        let size = self.size;//[(self.size.0 as f32/2.0).ceil(), (self.size.1 as f32/2.0).ceil()];
 
-        let bx = (area.bounds.0 as f32 - x) - size[0];
-        let by = (area.bounds.1 as f32 - y) - size[1];
-        let bx2 = ((area.bounds.0+area.bounds.2) as f32 - x) - size[0];
-        let by2 = ((area.bounds.1+area.bounds.3) as f32 - y) - size[1];
-        let bound = [bx, by, bx2, by2];
+      //let bx = (area.bounds.0 as f32 - x) - size[0];
+      //let by = (area.bounds.1 as f32 - y) - size[1];
+      //let bx2 = ((area.bounds.0+area.bounds.2) as f32 - x) - size[0];
+      //let by2 = ((area.bounds.1+area.bounds.3) as f32 - y) - size[1];
+        let bound = [0.0, 0.0, 0.0, 0.0];
 
         let x = w(x);
         let y = h(y);
         let x2 = w(x2);
         let y2 = h(y2);
 
-        let stroke = self.stroke as f32;
         let z_index = area.z_index as f32 / u16::MAX as f32;
 
         (
             [
                 ShapeVertex{
-                    coords: [-size[0], size[1]],
+                    uv: [0.0, 0.0],
                     position: [x, y],
                     bound,
-                    stroke,
                     z_index
                 },
                 ShapeVertex{
-                    coords: [size[0], size[1]],
+                    uv: [1.0, 0.0],//[self.size.0 as f32, 0.0],
                     position: [x2, y],
                     bound,
-                    stroke,
                     z_index
                 },
                 ShapeVertex{
-                    coords: [-size[0], -size[1]],
+                    uv: [0.0, 1.0], //[0.0, self.size.1 as f32],
                     position: [x, y2],
                     bound,
-                    stroke,
                     z_index
                 },
                 ShapeVertex{
-                    coords: [size[0], -size[1]],
+                    uv: [1.0, 1.0],// [self.size.0 as f32, self.size.1 as f32],
                     position: [x2, y2],
                     bound,
-                    stroke,
                     z_index
                 }
             ],

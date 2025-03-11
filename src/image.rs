@@ -50,9 +50,9 @@ impl ImageAtlas {
     ) {
         self.uncached.drain().collect::<Vec<_>>().into_iter().for_each(|(key, image)| {
             if let Entry::Vacant(entry) = self.cached.entry(key) {
+                let image = image::imageops::resize(&image, 400, 400, image::imageops::FilterType::CatmullRom);
+
                 let mut dimensions = image.dimensions();
-                dimensions.0 = dimensions.0.min(dimensions.1);
-                dimensions.1 = dimensions.0.min(dimensions.1);
                 let size = Extent3d {
                     width: dimensions.0,
                     height: dimensions.1,
@@ -66,7 +66,7 @@ impl ImageAtlas {
                         sample_count: 1,
                         dimension: TextureDimension::D2,
                         format: TextureFormat::Rgba8UnormSrgb,
-                        usage: TextureUsages::TEXTURE_BINDING | TextureUsages::COPY_DST,
+                        usage: TextureUsages::TEXTURE_BINDING | TextureUsages::COPY_DST | TextureUsages::RENDER_ATTACHMENT,
                         label: None,
                         view_formats: &[],
                     }
@@ -117,9 +117,9 @@ impl ImageAtlas {
 }
 
 pub(crate) struct ImageShapeRenderer {
-    ellipse_renderer: GenericImageRenderer<Ellipse>,
+    //ellipse_renderer: GenericImageRenderer<Ellipse>,
     rectangle_renderer: GenericImageRenderer<Rectangle>,
-    rounded_rectangle_renderer: GenericImageRenderer<RoundedRectangle>,
+    //rounded_rectangle_renderer: GenericImageRenderer<RoundedRectangle>,
 }
 
 impl ImageShapeRenderer {
@@ -130,13 +130,13 @@ impl ImageShapeRenderer {
         multisample: MultisampleState,
         depth_stencil: Option<DepthStencilState>,
     ) -> Self {
-        let ellipse_shader = device.create_shader_module(wgpu::include_wgsl!("image/ellipse.wgsl"));
+        //let ellipse_shader = device.create_shader_module(wgpu::include_wgsl!("image/ellipse.wgsl"));
         let rectangle_shader = device.create_shader_module(wgpu::include_wgsl!("image/rectangle.wgsl"));
-        let rounded_rectangle_shader = device.create_shader_module(wgpu::include_wgsl!("image/rounded_rectangle.wgsl"));
+        //let rounded_rectangle_shader = device.create_shader_module(wgpu::include_wgsl!("image/rounded_rectangle.wgsl"));
         ImageShapeRenderer{
-            ellipse_renderer: GenericImageRenderer::new(device, texture_format, multisample, depth_stencil.clone(), ellipse_shader),
+            //ellipse_renderer: GenericImageRenderer::new(device, texture_format, multisample, depth_stencil.clone(), ellipse_shader),
             rectangle_renderer: GenericImageRenderer::new(device, texture_format, multisample, depth_stencil.clone(), rectangle_shader),
-            rounded_rectangle_renderer: GenericImageRenderer::new(device, texture_format, multisample, depth_stencil.clone(), rounded_rectangle_shader),
+            //rounded_rectangle_renderer: GenericImageRenderer::new(device, texture_format, multisample, depth_stencil.clone(), rounded_rectangle_shader),
         }
     }
 
@@ -165,16 +165,16 @@ impl ImageShapeRenderer {
             }
         );
 
-        self.ellipse_renderer.prepare(device, queue, width, height, image_atlas, el_areas);
+        //self.ellipse_renderer.prepare(device, queue, width, height, image_atlas, el_areas);
         self.rectangle_renderer.prepare(device, queue, width, height, image_atlas, rect_areas);
-        self.rounded_rectangle_renderer.prepare(device, queue, width, height, image_atlas, rrect_areas);
+        //self.rounded_rectangle_renderer.prepare(device, queue, width, height, image_atlas, rrect_areas);
     }
 
     /// Render using caller provided render pass.
     pub fn render(&self, render_pass: &mut RenderPass<'_>) {
-        self.ellipse_renderer.render(render_pass);
+        //self.ellipse_renderer.render(render_pass);
         self.rectangle_renderer.render(render_pass);
-        self.rounded_rectangle_renderer.render(render_pass);
+        //self.rounded_rectangle_renderer.render(render_pass);
     }
 }
 
@@ -290,6 +290,57 @@ impl<S: Shape> GenericImageRenderer<S> {
         img_sh_area: Vec<(ImageKey, S, Area)>
     ) {
         self.indices.clear();
+
+        use image::{ImageBuffer, Rgb};
+
+
+
+        let size = (500, 400);
+        let hsize = (size.0/2, size.1/2);
+        let steps = (size.0+size.1)*16;
+        let increment = (std::f64::consts::PI/(steps as f64 / 2.0));
+
+        let mut image = image::RgbaImage::new(size.0, size.1);
+        for x in 0..size.0 {
+            for y in 0..size.1 {
+                if x < 20 || x > size.0-20 || y < 20 || y > size.1-20 {
+                    image.put_pixel(x, y, image::Rgba([200, 200, 0, 255]));
+                } else {
+                    image.put_pixel(x, y, image::Rgba([200, 200, 200, 255]));
+                }
+            }
+        }
+
+        let size = (size.0-40, size.1-40);
+        let hsize = (size.0/2, size.1/2);
+        let steps = (size.0*size.1);
+        let increment = (std::f64::consts::PI/(steps as f64 / 2.0));
+
+        for i in 0..steps {
+            let t = -std::f64::consts::PI + (increment*i as f64);
+            let x = t.cos()*hsize.0 as f64;
+            let y = t.sin()*hsize.1 as f64;
+
+            let x = x.round()+hsize.0 as f64;
+            let y = y.round()+hsize.1 as f64;
+
+            let x = ((20.0+x) as u32);
+            let y = ((20.0+y) as u32);
+
+          //if x < hsize.0 {
+          //    for i in x..hsize.0 {
+          //        image.put_pixel(i, y, image::Rgba([0, 0, 0, 255]));
+          //    }
+          //} else {
+          //    for i in hsize.0..x {
+          //        image.put_pixel(i, y, image::Rgba([0, 0, 0, 255]));
+          //    }
+          //}
+            image.put_pixel(x, y, image::Rgba([0, 0, 0, 255]));
+        }
+        //image.save("empty.png");
+
+        let image_key = image_atlas.add(image);
 
         image_atlas.prepare(queue, device, &self.bind_group_layout, &self.sampler);
 
