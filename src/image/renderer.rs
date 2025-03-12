@@ -52,7 +52,7 @@ impl ImageRenderer {
                     binding: 0,
                     visibility: ShaderStages::FRAGMENT,
                     ty: BindingType::Texture {
-                        multisampled: true,
+                        multisampled: false,
                         view_dimension: TextureViewDimension::D2,
                         sample_type: TextureSampleType::Float{filterable: false},
                     },

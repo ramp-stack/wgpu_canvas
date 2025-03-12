@@ -23,7 +23,7 @@ fn vs_main(
 }
 
 @group(0) @binding(0)
-var t_diffuse: texture_multisampled_2d<f32>;
+var t_diffuse: texture_2d<f32>;
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {

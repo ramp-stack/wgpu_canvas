@@ -1,4 +1,4 @@
-use wgpu::{BindGroup, TextureViewDescriptor, TexelCopyBufferLayout, TextureAspect, Origin3d, TextureUsages, TexelCopyTextureInfo, Extent3d, TextureDimension, TextureDescriptor, TextureFormat, BindGroupLayout, Device, Queue};
+use wgpu::{BindGroup, TextureViewDescriptor, TexelCopyBufferLayout, TextureAspect, Origin3d, TextureUsages, TexelCopyTextureInfo, Extent3d, TextureDimension, TextureDescriptor, TextureFormat, BindGroupLayout, Sampler, Device, Queue};
 
 use std::collections::HashMap;
 use std::collections::hash_map::Entry;
@@ -52,10 +52,10 @@ impl ImageAtlas {
                     &TextureDescriptor {
                         size,
                         mip_level_count: 1,
-                        sample_count: 4,
+                        sample_count: 1,
                         dimension: TextureDimension::D2,
                         format: TextureFormat::Rgba8UnormSrgb,
-                        usage: TextureUsages::TEXTURE_BINDING | TextureUsages::COPY_DST | TextureUsages::RENDER_ATTACHMENT,
+                        usage: TextureUsages::TEXTURE_BINDING | TextureUsages::COPY_DST,
                         label: None,
                         view_formats: &[],
                     }
@@ -82,10 +82,12 @@ impl ImageAtlas {
                 let bind_group = Arc::new(device.create_bind_group(
                     &wgpu::BindGroupDescriptor {
                         layout,
-                        entries: &[wgpu::BindGroupEntry {
-                            binding: 0,
-                            resource: wgpu::BindingResource::TextureView(&texture_view),
-                        }],
+                        entries: &[
+                            wgpu::BindGroupEntry {
+                                binding: 0,
+                                resource: wgpu::BindingResource::TextureView(&texture_view),
+                            }
+                        ],
                         label: None,
                     }
                 ));
