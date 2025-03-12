@@ -77,7 +77,6 @@ impl FontAtlas {
     }
 
     pub fn remove(&mut self, key: &FontKey) {self.fonts.remove(key);}
-    pub fn contains(&self, key: &FontKey) -> bool {self.fonts.contains_key(key)}
 
     pub fn messure_text(&mut self, t: &Text) -> (u32, u32) {
         t.into_buffer(self, 0).lines.first().map(|line|

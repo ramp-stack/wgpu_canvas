@@ -13,4 +13,4 @@ hex = "0.4.3"
 wgpu_dyn_buffer = "2.0.0"
 bytemuck = "1.21.0"
 glyphon = "0.8.0"
-image = "0.25.5"
+image_crate = {package="image", version="0.25.5"}
