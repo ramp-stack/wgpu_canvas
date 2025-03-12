@@ -39,6 +39,23 @@ impl ShapeAtlas {
     }
 }
 
+pub struct Parametric(u32, u32);
+
+impl Parametric {
+    pub fn build(self, mut iter: impl FnMut(f64, f64, f64)) {
+        let hsize = (self.0 as f64/2.0, self.1 as f64/2.0);
+        let steps = self.0*self.1;
+        let increment = std::f64::consts::PI/(steps as f64 / 2.0);
+
+        let a = hsize.0-0.5;
+        let b = hsize.1-0.5;
+        for i in 0..steps {
+            let t = -std::f64::consts::PI + (increment*i as f64);
+            iter(a, b, t)
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, Hash)]
 pub struct Ellipse {
     pub color: (u8, u8, u8, u8),
@@ -48,37 +65,38 @@ pub struct Ellipse {
 
 impl Shape for Ellipse {
     fn build(self) -> Image {
-        let size = (self.size.0*4, self.size.1*4);
+        let size = (self.size.0, self.size.1);
 
         let mut image = image_crate::DynamicImage::new(size.0, size.1, image_crate::ColorType::Rgba8);
-      //for x in 0..size.0 {
-      //    for y in 0..size.1 {
-      //        image.put_pixel(x, y, image_crate::Rgba([200, 200, 200, 255]));
-      //    }
-      //}
+        for x in 0..size.0 {
+            for y in 0..size.1 {
+                image.put_pixel(x, y, image_crate::Rgba([200, 200, 0, 255]));
+            }
+        }
 
         let pixel = image_crate::Rgba([self.color.0, self.color.1, self.color.2, self.color.3]);
-        let hsize = (size.0/2, size.1/2);
-
-        let steps = size.0*size.1;
-        let increment = std::f64::consts::PI/(steps as f64 / 2.0);
-
         let k = (self.stroke as f64)*-4.0;
-        let a = hsize.0 as f64 - 0.5;
-        let b = hsize.1 as f64 - 0.5;
-        for i in 0..steps {
-            let t = -std::f64::consts::PI + (increment*i as f64);
 
-            let x = a * t.cos();
-            let y = b * t.sin();
+        Parametric(size.0, size.1).build(|a: f64, b: f64, t: f64| {
+            let x = (a) * t.cos();
+            let y = (b) * t.sin();
 
-            let x = (a+x).round();
-            let y = (b+y).round();
+            let x = ((a)+x).round();
+            let y = ((b)+y).round();
 
             let x = (x as u32).min(size.0-1);
             let y = (y as u32).min(size.1-1);
 
-            //image.put_pixel(x, y, pixel);
+            if (x as f64) < a {
+                for i in x..(a.ceil() as u32) {
+                    image.put_pixel(i, y, pixel);
+                }
+            } else {
+                for i in (a.ceil() as u32)..x+1 {
+                    image.put_pixel(i, y, pixel);
+                }
+            }
+        });
 
           //let x = (a + (b*k / (((a*a)*(t.sin()*t.sin()))+((b*b)*(t.cos()*t.cos()))).sqrt())) * t.cos();
           //let y = (b + (a*k / (((a*a)*(t.sin()*t.sin()))+((b*b)*(t.cos()*t.cos()))).sqrt())) * t.sin();
@@ -95,33 +113,12 @@ impl Shape for Ellipse {
           //);
 
 
-            if x < hsize.0 {
-                for i in x..hsize.0 {
-                    image.put_pixel(i, y, pixel);
-                }
-            } else {
-                for i in hsize.0..x {
-                    image.put_pixel(i, y, pixel);
-                }
-            }
-        }
+      //let mut dst_image = image_crate::DynamicImage::new(
+      //    self.size.0, self.size.1, image_crate::ColorType::Rgba8
+      //);
+      //let mut resizer = Resizer::new();
+      //resizer.resize(&image, &mut dst_image, &None).unwrap();
 
-        let mut dst_image = image_crate::DynamicImage::new(
-            self.size.0, self.size.1, image_crate::ColorType::Rgba8
-        );
-
-        let mut resizer = Resizer::new();
-        resizer.resize(&image, &mut dst_image,
-            //&ResizeOptions::new().resize_alg(ResizeAlg::Interpolation(FilterType::CatmullRom))
-            &None
-        ).unwrap();
-
-
-        //&ResizeOptions::new().resize_alg(ResizeAlg::SuperSampling(FilterType::Lanczos3, 255))
-      //image_crate::imageops::resize(
-      //    &image, self.size.0, self.size.1,
-      //    image_crate::imageops::FilterType::Gaussian
-      //)
-        dst_image.into()
+        image.into()
     }
 }
