@@ -2,8 +2,8 @@ use fast_image_resize::{Resizer, ResizeOptions, ResizeAlg, FilterType};
 
 use std::time::Instant;
 
-use image::GenericImage;
-use super::{ImagePointer, RawImage};
+use image::{GenericImage, DynamicImage, RgbaImage, Rgba};
+use super::{ImagePointer};
 
 const EMPTY: image::Rgba<u8> = image::Rgba([0, 0, 0, 0]);
 
@@ -38,7 +38,7 @@ pub struct Ellipse{
 }
 
 impl Ellipse {
-    pub fn build(self, pixel: impl Fn(u32, u32) -> image::Rgba<u8>) -> RawImage {
+    pub fn color(self, pixel: Rgba<u8>) -> RgbaImage {
         let time = Instant::now();
         println!("margin: {}", time.elapsed().as_millis());
         let alpha = 4;
@@ -57,10 +57,10 @@ impl Ellipse {
 
         for x in 0..stroke {
             for y in 0..stroke {
-                image.put_pixel(x, y, pixel(x, y));
-                image.put_pixel(x, size.1-y-1, pixel(x, y));
-                image.put_pixel(size.0-x-1, size.1-y-1, pixel(x, y));
-                image.put_pixel(size.0-x-1, y, pixel(x, y));
+                image.put_pixel(x, y, pixel);
+                image.put_pixel(x, size.1-y-1, pixel);
+                image.put_pixel(size.0-x-1, size.1-y-1, pixel);
+                image.put_pixel(size.0-x-1, y, pixel);
             }
         }
         println!("corners: {}", time.elapsed().as_millis());
@@ -75,21 +75,21 @@ impl Ellipse {
                 let (x, y) = to_coord(x, y);
                 if (x as f64) < a {
                     for i in 0..x+1 {
-                        image.put_pixel(i, y, pixel(i, y));
+                        image.put_pixel(i, y, pixel);
                     }
                 } else {
                     for i in x..1+(a+a) as u32 {
-                        image.put_pixel(i, y, pixel(i, y));
+                        image.put_pixel(i, y, pixel);
                     }
                 }
 
                 if (y as f64) < b {
                     for i in 0..y+1 {
-                        image.put_pixel(x, i, pixel(x, i));
+                        image.put_pixel(x, i, pixel);
                     }
                 } else {
                     for i in y..1+(b+b) as u32 {
-                        image.put_pixel(x, i, pixel(x, i));
+                        image.put_pixel(x, i, pixel);
                     }
                 }
             });
@@ -122,11 +122,11 @@ impl Ellipse {
 
                 if (x as f64) < a {
                     for i in x..(a.ceil() as u32) {
-                        image.put_pixel(i, y, pixel(i, y));
+                        image.put_pixel(i, y, pixel);
                     }
                 } else {
                     for i in (a.ceil() as u32)..x {
-                        image.put_pixel(i, y, pixel(i, y));
+                        image.put_pixel(i, y, pixel);
                     }
                 }
             });
@@ -143,8 +143,9 @@ impl Ellipse {
         ).unwrap();
         println!("resized: {}", time.elapsed().as_millis());
 
-        RawImage(dst_image.into_bytes(), self.size.0, self.size.1)
+        dst_image.into()
     }
+    pub fn image(self, image: ImagePointer) -> RgbaImage {todo!()}
 }
 
 #[derive(Clone, Copy, Debug, Hash)]
@@ -154,24 +155,17 @@ pub struct Rectangle{
 }
 
 impl Rectangle {
-    pub fn build(self, pixel: impl Fn(u32, u32) -> image::Rgba<u8>) -> RawImage {
-        let mut image = image::DynamicImage::new(self.size.0, self.size.1, image::ColorType::Rgba8);
-
-        for x in 0..self.size.0 {
-            for y in 0..self.size.1 {
-                image.put_pixel(x, y, pixel(x, y));
-            }
-        }
-
+    pub fn color(self, color: Rgba<u8>) -> RgbaImage {todo!()}
+    pub fn image(self, image: ImagePointer) -> RgbaImage {
         let mut dst_image = image::DynamicImage::new(
             self.size.0, self.size.1, image::ColorType::Rgba8
         );
         let mut resizer = Resizer::new();
-        resizer.resize(&image, &mut dst_image,
+        resizer.resize(&DynamicImage::from(RgbaImage::clone(&image)), &mut dst_image,
             &ResizeOptions::new().resize_alg(ResizeAlg::SuperSampling(FilterType::Lanczos3, 12))
         ).unwrap();
 
-        RawImage(dst_image.into_bytes(), self.size.0, self.size.1)
+        dst_image.into()
     }
 }
 
@@ -183,24 +177,26 @@ pub struct RoundedRectangle{
 }
 
 impl RoundedRectangle {
-    pub fn build(self, pixel: impl Fn(u32, u32) -> image::Rgba<u8>) -> RawImage {
-        let mut image = image::DynamicImage::new(self.size.0, self.size.1, image::ColorType::Rgba8);
+    pub fn color(self, color: Rgba<u8>) -> RgbaImage {todo!()}
+    pub fn image(self, image: ImagePointer) -> RgbaImage {
+        todo!()
+      //let mut image = image::DynamicImage::new(self.size.0, self.size.1, image::ColorType::Rgba8);
 
-        for x in 0..self.size.0 {
-            for y in 0..self.size.1 {
-                image.put_pixel(x, y, pixel(x, y));
-            }
-        }
+      //for x in 0..self.size.0 {
+      //    for y in 0..self.size.1 {
+      //        image.put_pixel(x, y, pixel(x, y));
+      //    }
+      //}
 
-        let mut dst_image = image::DynamicImage::new(
-            self.size.0, self.size.1, image::ColorType::Rgba8
-        );
-        let mut resizer = Resizer::new();
-        resizer.resize(&image, &mut dst_image,
-            &ResizeOptions::new().resize_alg(ResizeAlg::SuperSampling(FilterType::Lanczos3, 12))
-        ).unwrap();
+      //let mut dst_image = image::DynamicImage::new(
+      //    self.size.0, self.size.1, image::ColorType::Rgba8
+      //);
+      //let mut resizer = Resizer::new();
+      //resizer.resize(&image, &mut dst_image,
+      //    &ResizeOptions::new().resize_alg(ResizeAlg::SuperSampling(FilterType::Lanczos3, 12))
+      //).unwrap();
 
-        RawImage(dst_image.into_bytes(), self.size.0, self.size.1)
+      //RawImage(dst_image.into_bytes(), self.size.0, self.size.1)
     }
 }
 
@@ -212,34 +208,27 @@ pub enum Shape {
 }
 
 impl Shape {
-    pub(crate) fn color(self, color: (u8, u8, u8, u8)) -> RawImage {
+    pub(crate) fn color(self, color: (u8, u8, u8, u8)) -> RgbaImage {
         match self {
-            Shape::Ellipse(stroke, size) => Ellipse{stroke, size}.build(
-                |_, _| image::Rgba([color.0, color.1, color.2, color.3])
+            Shape::Ellipse(stroke, size) => Ellipse{stroke, size}.color(
+                image::Rgba([color.0, color.1, color.2, color.3])
             ),
-            Shape::Rectangle(stroke, size) => Rectangle{stroke, size}.build(
-                |_, _| image::Rgba([color.0, color.1, color.2, color.3])
+            Shape::Rectangle(stroke, size) => Rectangle{stroke, size}.color(
+                image::Rgba([color.0, color.1, color.2, color.3])
             ),
             Shape::RoundedRectangle(stroke, size, corner_radius) =>
-                RoundedRectangle{stroke, size, corner_radius}.build(
-                |_, _| image::Rgba([color.0, color.1, color.2, color.3])
+                RoundedRectangle{stroke, size, corner_radius}.color(
+                image::Rgba([color.0, color.1, color.2, color.3])
             )
         }
     }
 
-    pub(crate) fn image(self, image: ImagePointer) -> RawImage {
-        let image = image::RgbaImage::from_vec(image.1, image.2, image.0.clone()).unwrap();
+    pub(crate) fn image(self, image: ImagePointer) -> RgbaImage {
         match self {
-            Shape::Ellipse(stroke, size) => Ellipse{stroke, size}.build(
-                |x, y| *image.get_pixel(x, y)
-            ),
-            Shape::Rectangle(stroke, size) => Rectangle{stroke, size}.build(
-                |x, y| *image.get_pixel(x, y)
-            ),
+            Shape::Ellipse(stroke, size) => Ellipse{stroke, size}.image(image),
+            Shape::Rectangle(stroke, size) => Rectangle{stroke, size}.image(image),
             Shape::RoundedRectangle(stroke, size, corner_radius) =>
-                RoundedRectangle{stroke, size, corner_radius}.build(
-                |x, y| *image.get_pixel(x, y)
-            )
+                RoundedRectangle{stroke, size, corner_radius}.image(image)
         }
     }
 }

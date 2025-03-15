@@ -7,7 +7,7 @@ mod text;
 pub use shape::Shape;
 pub use text::Text;
 
-use image::{ImageRenderer, ImageAtlas, ImagePointer, RawImage};
+use image::{ImageRenderer, ImageAtlas, ImagePointer};
 use text::{TextRenderer, FontAtlas, FontPointer};
 
 #[derive(Debug, Clone, Copy)]
@@ -30,8 +30,8 @@ impl Font {
 pub struct Image(ImagePointer);
 
 impl Image {
-    pub fn new(atlas: &mut CanvasAtlas, bytes: Vec<u8>, width: u32, height: u32) -> Self {
-        Image(atlas.image.add(RawImage(bytes, width, height)))
+    pub fn new(atlas: &mut CanvasAtlas, image: image::RgbaImage) -> Self {
+        Image(atlas.image.add(image))
     }
 }
 
@@ -64,8 +64,8 @@ impl CanvasItem {
 
     pub fn size(&self, atlas: &mut CanvasAtlas) -> (u32, u32) {
         match self {
-            CanvasItem::Shape(image) => (image.1, image.2),
-            CanvasItem::Image(image) => (image.1, image.2),
+            CanvasItem::Shape(image) => image.dimensions(),
+            CanvasItem::Image(image) => image.dimensions(),
             CanvasItem::Text(text) => atlas.font.messure_text(text),
         }
     }

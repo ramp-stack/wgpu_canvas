@@ -1,16 +1,17 @@
 use wgpu::{BindGroup, TextureViewDescriptor, TexelCopyBufferLayout, TextureAspect, Origin3d, TextureUsages, TexelCopyTextureInfo, Extent3d, TextureDimension, TextureDescriptor, TextureFormat, BindGroupLayout, Device, Queue};
 
-use std::collections::HashMap;
+pub use image::RgbaImage;
 
+use std::collections::HashMap;
 use std::sync::Arc;
 
 mod renderer;
 pub(crate) use renderer::ImageRenderer;
 
-pub type ImagePointer = Arc<RawImage>;
+pub type ImagePointer = Arc<RgbaImage>;
 
-#[derive(PartialEq, Clone, Debug, Hash, Eq)]
-pub struct RawImage(pub Vec<u8>, pub u32, pub u32);
+//#[derive(PartialEq, Clone, Debug, Hash, Eq)]
+//pub struct RawImage(pub Vec<u8>, pub u32, pub u32);
 
 #[derive(Debug, Clone)]
 pub struct InnerImage(Arc<BindGroup>, (u32, u32));
@@ -19,7 +20,7 @@ pub struct InnerImage(Arc<BindGroup>, (u32, u32));
 pub struct ImageAtlas(Option<HashMap<ImagePointer, Option<InnerImage>>>);
 
 impl ImageAtlas {
-    pub fn add(&mut self, image: RawImage) -> ImagePointer {
+    pub fn add(&mut self, image: RgbaImage) -> ImagePointer {
         let image = Arc::new(image);
         match self.0.as_mut().unwrap().get(&image) {
             Some(_) => image.clone(),
@@ -38,9 +39,10 @@ impl ImageAtlas {
     ) {
         self.0 = Some(self.0.take().unwrap().into_iter().filter_map(|(k, v)| Arc::try_unwrap(k).err().map(|image| {
             let inner_image = v.unwrap_or_else(|| {
+                let dimensions = image.dimensions();
                 let size = Extent3d {
-                    width: image.1,
-                    height: image.2,
+                    width: dimensions.0,
+                    height: dimensions.1,
                     depth_or_array_layers: 1,
                 };
 
@@ -64,11 +66,11 @@ impl ImageAtlas {
                         origin: Origin3d::ZERO,
                         aspect: TextureAspect::All,
                     },
-                    &image.0,
+                    &image,
                     TexelCopyBufferLayout{
                         offset: 0,
-                        bytes_per_row: Some(4 * image.1),
-                        rows_per_image: Some(image.2),
+                        bytes_per_row: Some(4 * dimensions.0),
+                        rows_per_image: Some(dimensions.1),
                     },
                     size
                 );
@@ -87,7 +89,7 @@ impl ImageAtlas {
                         label: None,
                     }
                 ));
-                InnerImage(bind_group, (image.1, image.2))
+                InnerImage(bind_group, dimensions)
             });
             (image, Some(inner_image))
         })
