@@ -43,26 +43,24 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 
     let a = (in.size.x / 2.0);
     let b = (in.size.y / 2.0);
-
     let x = (a-(in.uv.x)) / (a - 1.0);
     let y = (b-(in.uv.y)) / (b - 1.0);
-
     let d = x*x+y*y;
-
     let p = (2.0/a);
 
-  //var x = in.uv[0]-0.5;
-  //var y = in.uv[1]-0.5;
-  //var d = (x*x+y*y)*4;
+    var stroke = 1.0;
+    if in.stroke > 0 {
+        let sa = (in.size.x-(in.stroke*2.0)) / 2.0;
+        let sb = (in.size.y-(in.stroke*2.0)) / 2.0;
+        let sx = (a-(in.uv.x)) / (sa - 1.0);
+        let sy = (b-(in.uv.y)) / (sb - 1.0);
+        let sd = sx*sx+sy*sy;
+        stroke = smoothstep(1.0, 1.0+p, sd);
+    }
 
-  //var alpha = 1.0;
-  //if d > 1.0 {alpha = 0.0;}
-
-    var alpha = 1.0-smoothstep(1.0, 1.0+p, d);
+    var alpha = (1.0-smoothstep(1.0, 1.0+p, d)) * stroke;
   //if alpha == 1.0 {return vec4<f32>(1.0, 1.0, 0.0, 1.0);}
   //if alpha == 0.0 {return vec4<f32>(1.0, 0.0, 0.0, 1.0);}
-
-
 
 
   //if in.stroke > 0 {
@@ -71,6 +69,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
   //        discard;
   //    }
   //}
+
     let coords = vec2<u32>(u32(floor(in.uv.x)), u32(floor(in.uv.y)));
     //let color = textureLoad(t_diffuse, coords, 0);
     let color = vec4<f32>(1.0, 1.0, 1.0, 1.0);
