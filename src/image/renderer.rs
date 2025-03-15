@@ -10,7 +10,8 @@ use crate::shape::{ShapeVertex, RoundedRectangleVertex};
 pub struct ImageRenderer {
     bind_group_layout: BindGroupLayout,
     ellipse_renderer: GenericImageRenderer,
-    rectangle_renderer: GenericImageRenderer
+    rectangle_renderer: GenericImageRenderer,
+    rounded_rectangle_renderer: GenericImageRenderer,
 }
 
 impl ImageRenderer {
@@ -41,10 +42,13 @@ impl ImageRenderer {
         let ellipse_renderer = GenericImageRenderer::new(device, texture_format, multisample, depth_stencil.clone(), &bind_group_layout, shader, ShapeVertex::layout());
         let shader = device.create_shader_module(wgpu::include_wgsl!("rectangle.wgsl"));
         let rectangle_renderer = GenericImageRenderer::new(device, texture_format, multisample, depth_stencil.clone(), &bind_group_layout, shader, ShapeVertex::layout());
+        let shader = device.create_shader_module(wgpu::include_wgsl!("rounded_rectangle.wgsl"));
+        let rounded_rectangle_renderer = GenericImageRenderer::new(device, texture_format, multisample, depth_stencil.clone(), &bind_group_layout, shader, RoundedRectangleVertex::layout());
         ImageRenderer{
             bind_group_layout,
             ellipse_renderer,
-            rectangle_renderer
+            rectangle_renderer,
+            rounded_rectangle_renderer
         }
     }
 
@@ -74,14 +78,16 @@ impl ImageRenderer {
                 a
             }
         );
-        self.rectangle_renderer.prepare(device, queue, width, height, rects);
         self.ellipse_renderer.prepare(device, queue, width, height, ellipses);
+        self.rectangle_renderer.prepare(device, queue, width, height, rects);
+        self.rounded_rectangle_renderer.prepare(device, queue, width, height, rounded_rects);
     }
 
     /// Render using caller provided render pass.
     pub fn render(&self, render_pass: &mut RenderPass<'_>) {
-        self.rectangle_renderer.render(render_pass);
         self.ellipse_renderer.render(render_pass);
+        self.rectangle_renderer.render(render_pass);
+        self.rounded_rectangle_renderer.render(render_pass);
     }
 }
 
@@ -128,7 +134,6 @@ impl GenericImageRenderer {
                         blend: Some(wgpu::BlendState::ALPHA_BLENDING),
                         write_mask: wgpu::ColorWrites::ALL,
                     })
-            //Some((*texture_format).into())],
                 ]
             }),
             primitive: PrimitiveState::default(),
