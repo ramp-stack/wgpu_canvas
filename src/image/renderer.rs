@@ -122,7 +122,14 @@ impl GenericImageRenderer {
                 module: &shader,
                 entry_point: Some("fs_main"),
                 compilation_options: PipelineCompilationOptions::default(),
-                targets: &[Some((*texture_format).into())],
+                targets: &[
+                    Some(wgpu::ColorTargetState{
+                        format: *texture_format,
+                        blend: Some(wgpu::BlendState::ALPHA_BLENDING),
+                        write_mask: wgpu::ColorWrites::ALL,
+                    })
+            //Some((*texture_format).into())],
+                ]
             }),
             primitive: PrimitiveState::default(),
             depth_stencil,
