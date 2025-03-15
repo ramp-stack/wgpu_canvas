@@ -41,11 +41,11 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
   //    discard;
   //}
 
-    let a = in.size.x / 2.0;
-    let b = in.size.y / 2.0;
+    let a = (in.size.x / 2.0);
+    let b = (in.size.y / 2.0);
 
-    let x = (a-(in.uv.x)) / (a-1.0);
-    let y = (b-(in.uv.y)) / (b-1.0);
+    let x = (a-(in.uv.x)) / (a - 1.0);
+    let y = (b-(in.uv.y)) / (b - 1.0);
 
     let d = x*x+y*y;
 
@@ -55,8 +55,12 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
   //var y = in.uv[1]-0.5;
   //var d = (x*x+y*y)*4;
 
-    var alpha = smoothstep(1.0, 1.0-p, d);
-    //if alpha == 1.0 {return vec4<f32>(1.0, 1.0, 0.0, 1.0);}
+  //var alpha = 1.0;
+  //if d > 1.0 {alpha = 0.0;}
+
+    var alpha = 1.0-smoothstep(1.0, 1.0+p, d);
+  //if alpha == 1.0 {return vec4<f32>(1.0, 1.0, 0.0, 1.0);}
+  //if alpha == 0.0 {return vec4<f32>(1.0, 0.0, 0.0, 1.0);}
 
 
 
