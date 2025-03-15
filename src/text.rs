@@ -14,7 +14,7 @@ pub struct Text {
     pub width: Option<u32>,
     pub size: u32,
     pub line_height: u32,
-    pub font: FontPointer,
+    pub font: Font,
 }
 
 impl Text {
@@ -29,10 +29,10 @@ impl Text {
     }
 }
 
-pub type FontPointer = Arc<(ID, Attrs<'static>)>;
+pub type Font = Arc<(ID, Attrs<'static>)>;
 
 pub struct FontAtlas{
-    fonts: Option<HashMap<Arc<Vec<u8>>, FontPointer>>,
+    fonts: Option<HashMap<Arc<Vec<u8>>, Font>>,
     font_system: FontSystem
 }
 
@@ -45,7 +45,7 @@ impl FontAtlas {
         ).unwrap_or((0, 0))
     }
 
-    pub fn add(&mut self, raw_font: Vec<u8>) -> FontPointer {
+    pub fn add(&mut self, raw_font: Vec<u8>) -> Font {
         let raw_font = Arc::new(raw_font);
         match self.fonts.as_mut().unwrap().get(&raw_font) {
             Some(font) => font.clone(),

@@ -8,19 +8,15 @@ use std::sync::Arc;
 mod renderer;
 pub(crate) use renderer::ImageRenderer;
 
-pub type ImagePointer = Arc<RgbaImage>;
+pub type Image = Arc<RgbaImage>;
 
-//#[derive(PartialEq, Clone, Debug, Hash, Eq)]
-//pub struct RawImage(pub Vec<u8>, pub u32, pub u32);
-
-#[derive(Debug, Clone)]
-pub struct InnerImage(Arc<BindGroup>, (u32, u32));
+pub type InnerImage = Arc<BindGroup>;//, (u32, u32));
 
 #[derive(Debug)]
-pub struct ImageAtlas(Option<HashMap<ImagePointer, Option<InnerImage>>>);
+pub struct ImageAtlas(Option<HashMap<Image, Option<InnerImage>>>);
 
 impl ImageAtlas {
-    pub fn add(&mut self, image: RgbaImage) -> ImagePointer {
+    pub fn add(&mut self, image: RgbaImage) -> Image {
         let image = Arc::new(image);
         match self.0.as_mut().unwrap().get(&image) {
             Some(_) => image.clone(),
@@ -77,7 +73,7 @@ impl ImageAtlas {
 
                 let texture_view = texture.create_view(&TextureViewDescriptor::default());
 
-                let bind_group = Arc::new(device.create_bind_group(
+                Arc::new(device.create_bind_group(
                     &wgpu::BindGroupDescriptor {
                         layout,
                         entries: &[
@@ -88,15 +84,14 @@ impl ImageAtlas {
                         ],
                         label: None,
                     }
-                ));
-                InnerImage(bind_group, dimensions)
+                ))
             });
             (image, Some(inner_image))
         })
         ).collect());
     }
 
-    pub fn get(&self, key: &ImagePointer) -> InnerImage {
+    pub fn get(&self, key: &Image) -> InnerImage {
         self.0.as_ref().unwrap().get(key).expect("Image not found in Atlas").clone().unwrap()
     }
 }
