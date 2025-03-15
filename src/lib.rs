@@ -5,7 +5,6 @@ mod image;
 mod text;
 
 pub use shape::Shape;
-pub use text::Text;
 
 use image::{ImageRenderer, ImageAtlas, ImagePointer};
 use text::{TextRenderer, FontAtlas, FontPointer};
@@ -15,6 +14,39 @@ pub struct Area {
     pub z_index: u16,//area.z_index = u16::MAX-area.z_index;
     pub offset: (u32, u32),
     pub bounds: (u32, u32, u32, u32)
+}
+
+#[derive(Clone, Debug)]
+pub struct Text {
+    pub text: &'static str,
+    pub color: (u8, u8, u8, u8),
+    pub width: Option<u32>,
+    pub size: u32,
+    pub line_height: u32,
+    pub font: Font,
+}
+
+impl Text {
+    pub fn new(
+        text: &'static str,
+        color: (u8, u8, u8, u8),
+        width: Option<u32>,
+        size: u32,
+        line_height: u32,
+        font: Font,
+    ) -> Self {
+        Text{text, color, width, size, line_height, font}
+    }
+
+    pub fn into_inner(self) -> text::Text {
+        text::Text{text: self.text, color: self.color, width: self.width, size: self.size, line_height: self.line_height, font: self.font.0}
+    }
+}
+
+pub enum Shape {
+    Ellipse(u32, (u32, u32)),
+    Rectangle(u32, (u32, u32)),
+    RoundedRectangle(u32, (u32, u32), u32),
 }
 
 #[derive(Clone, Debug)]
@@ -37,38 +69,38 @@ impl Image {
 
 #[derive(Clone, Debug)]
 pub enum CanvasItem {
-    Shape(ImagePointer),
-    Image(ImagePointer),
+    Shape(Shape, (u8, u8, u8, u8)),
+    Image(Shape, Image),
     Text(Text),
 }
 
 impl CanvasItem {
-    pub fn text(
-        text: &'static str,
-        color: (u8, u8, u8, u8),
-        width: Option<u32>,
-        size: u32,
-        line_height: u32,
-        font: Font,
-    ) -> Self {
-        CanvasItem::Text(Text::new(text, color, width, size, line_height, font.0))
-    }
+  //pub fn text(
+  //    text: &'static str,
+  //    color: (u8, u8, u8, u8),
+  //    width: Option<u32>,
+  //    size: u32,
+  //    line_height: u32,
+  //    font: Font,
+  //) -> Self {
+  //    CanvasItem::Text(Text::new(text, color, width, size, line_height, font))
+  //}
 
-    pub fn shape(atlas: &mut CanvasAtlas, shape: Shape, color: (u8, u8, u8, u8)) -> Self {
-        CanvasItem::Shape(atlas.image.add(shape.color(color)))
-    }
+  //pub fn shape(atlas: &mut CanvasAtlas, shape: Shape, color: (u8, u8, u8, u8)) -> Self {
+  //    CanvasItem::Shape(atlas.image.add(shape.color(color)))
+  //}
 
-    pub fn image(atlas: &mut CanvasAtlas, shape: Shape, image: Image) -> Self {
-        CanvasItem::Image(atlas.image.add(shape.image(image.0)))
-    }
+  //pub fn image(atlas: &mut CanvasAtlas, shape: Shape, image: Image) -> Self {
+  //    CanvasItem::Image(atlas.image.add(shape.image(image.0)))
+  //}
 
-    pub fn size(&self, atlas: &mut CanvasAtlas) -> (u32, u32) {
-        match self {
-            CanvasItem::Shape(image) => image.dimensions(),
-            CanvasItem::Image(image) => image.dimensions(),
-            CanvasItem::Text(text) => atlas.font.messure_text(text),
-        }
-    }
+  //pub fn size(&self, atlas: &mut CanvasAtlas) -> (u32, u32) {
+  //    match self {
+  //        CanvasItem::Shape(image) => image.dimensions(),
+  //        CanvasItem::Image(image) => image.dimensions(),
+  //        CanvasItem::Text(text) => atlas.font.messure_text(&text.clone().into_inner()),
+  //    }
+  //}
 }
 
 
@@ -112,16 +144,12 @@ impl CanvasRenderer {
     ) {
         let (images, texts) = items.into_iter().fold((vec![], vec![]), |mut a, (area, item)| {
             match item {
-                CanvasItem::Shape(image) => a.0.push((image, area)),
-                CanvasItem::Image(image) => a.0.push((image, area)),
-                CanvasItem::Text(text) => a.1.push((text, area)),
+                CanvasItem::Shape(shape, color) => a.0.push((image, area)),
+                CanvasItem::Image(shape, image) => a.0.push((image, area)),
+                CanvasItem::Text(text) => a.1.push((text.into_inner(), area)),
             }
             a
         });
-
-      //let mut images: Vec<(ImagePointer, Area)> = images.into_iter().map(|(i, a)| (i.0, a)).collect();
-      //images.extend(shapes.into_iter().map(|(s, a)| (s.0, a)));
-      //let texts = texts.into_iter().map(|(t, a)| (t.0, a)).collect();
 
         self.image_renderer.prepare(device, queue, width, height, &mut atlas.image, images);
         self.text_renderer.prepare(device, queue, width, height, &mut atlas.font, texts);

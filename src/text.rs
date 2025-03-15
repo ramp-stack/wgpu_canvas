@@ -18,15 +18,14 @@ pub struct Text {
 }
 
 impl Text {
-    pub fn new(
-        text: &'static str,
-        color: (u8, u8, u8, u8),
-        width: Option<u32>,
-        size: u32,
-        line_height: u32,
-        font: FontPointer,
-    ) -> Self {
-        Text{text, color, width, size, line_height, font}
+    fn to_buffer(&self, font_system: &mut FontSystem, metadata: usize) -> Buffer {
+        let font_attrs = self.font.1.metadata(metadata);
+        let metrics = Metrics::new(self.size as f32, self.line_height as f32);
+        let mut buffer = Buffer::new(font_system, metrics);
+        buffer.set_wrap(font_system, Wrap::WordOrGlyph);
+        buffer.set_size(font_system, self.width.map(|w| w as f32), None);
+        buffer.set_text(font_system, self.text, font_attrs, Shaping::Advanced);
+        buffer
     }
 }
 
@@ -39,7 +38,7 @@ pub struct FontAtlas{
 
 impl FontAtlas {
     pub fn messure_text(&mut self, text: &Text) -> (u32, u32) {
-        self.text_to_buffer(text, 0).lines.first().map(|line|
+        text.to_buffer(&mut self.font_system, 0).lines.first().map(|line|
             line.layout_opt().as_ref().unwrap().iter().fold((0, 0), |(w, h), span| {
                 (w.max(span.w as u32), h+span.line_height_opt.unwrap_or(span.max_ascent+span.max_descent) as u32)
             })
@@ -64,16 +63,6 @@ impl FontAtlas {
                 font
             }
         }
-    }
-
-    fn text_to_buffer(&mut self, text: &Text, metadata: usize) -> Buffer {
-        let font_attrs = text.font.1.metadata(metadata);
-        let metrics = Metrics::new(text.size as f32, text.line_height as f32);
-        let mut buffer = Buffer::new(&mut self.font_system, metrics);
-        buffer.set_wrap(&mut self.font_system, Wrap::WordOrGlyph);
-        buffer.set_size(&mut self.font_system, text.width.map(|w| w as f32), None);
-        buffer.set_text(&mut self.font_system, text.text, font_attrs, Shaping::Advanced);
-        buffer
     }
 
     fn trim(&mut self) {
@@ -133,7 +122,7 @@ impl TextRenderer {
         self.viewport.update(queue, Resolution{width, height});
 
         let buffers = text_areas.iter().map(|(t, a)|
-            font_atlas.text_to_buffer(t, a.z_index as usize)
+            t.to_buffer(&mut font_atlas.font_system, a.z_index as usize)
         ).collect::<Vec<_>>();
 
         let text_areas = text_areas.into_iter().zip(buffers.iter()).map(|((t, a), b)| {
