@@ -1,50 +1,46 @@
-use wgpu::{BindGroup, TextureViewDescriptor, TexelCopyBufferLayout, TextureAspect, Origin3d, TextureUsages, TexelCopyTextureInfo, Extent3d, TextureDimension, TextureDescriptor, TextureFormat, BindGroupLayout, Sampler, Device, Queue};
+use wgpu::{BindGroup, TextureViewDescriptor, TexelCopyBufferLayout, TextureAspect, Origin3d, TextureUsages, TexelCopyTextureInfo, Extent3d, TextureDimension, TextureDescriptor, TextureFormat, BindGroupLayout, Device, Queue};
 
 use std::collections::HashMap;
-use std::collections::hash_map::Entry;
 
-use std::hash::{DefaultHasher, Hasher, Hash};
 use std::sync::Arc;
 
 mod renderer;
 pub(crate) use renderer::ImageRenderer;
 
-pub use image_crate::RgbaImage as Image;
-pub type ImageKey = u64;
+pub type ImagePointer = Arc<RawImage>;
 
-#[derive(Default, Debug)]
-pub(crate) struct ImageAtlas {
-    uncached: HashMap<ImageKey, Image>,
-    cached: HashMap<ImageKey, (Arc<BindGroup>, (u32, u32))>
-}
+#[derive(PartialEq, Clone, Debug, Hash, Eq)]
+pub struct RawImage(pub Vec<u8>, pub u32, pub u32);
+
+#[derive(Debug, Clone)]
+pub struct InnerImage(Arc<BindGroup>, (u32, u32));
+
+#[derive(Debug)]
+pub struct ImageAtlas(Option<HashMap<ImagePointer, Option<InnerImage>>>);
 
 impl ImageAtlas {
-    pub fn add(&mut self, image: Image) -> ImageKey {
-        let mut hasher = DefaultHasher::new();
-        image.hash(&mut hasher);
-        let key = hasher.finish();
-        self.uncached.insert(key, image);
-        key
+    pub fn add(&mut self, image: RawImage) -> ImagePointer {
+        let image = Arc::new(image);
+        match self.0.as_mut().unwrap().get(&image) {
+            Some(_) => image.clone(),
+            None => {
+                self.0.as_mut().unwrap().insert(image.clone(), None);
+                image
+            }
+        }
     }
 
-    pub fn remove(&mut self, key: &ImageKey) {
-        self.uncached.remove(key);
-        self.cached.remove(key);
-    }
-
-    pub fn prepare(
+    pub fn trim_and_bind(
         &mut self,
         queue: &Queue,
         device: &Device,
         layout: &BindGroupLayout,
     ) {
-        self.uncached.drain().collect::<Vec<_>>().into_iter().for_each(|(key, image)| {
-            if let Entry::Vacant(entry) = self.cached.entry(key) {
-
-                let dimensions = image.dimensions();
+        self.0 = Some(self.0.take().unwrap().into_iter().filter_map(|(k, v)| Arc::try_unwrap(k).err().map(|image| {
+            let inner_image = v.unwrap_or_else(|| {
                 let size = Extent3d {
-                    width: dimensions.0,
-                    height: dimensions.1,
+                    width: image.1,
+                    height: image.2,
                     depth_or_array_layers: 1,
                 };
 
@@ -68,11 +64,11 @@ impl ImageAtlas {
                         origin: Origin3d::ZERO,
                         aspect: TextureAspect::All,
                     },
-                    &image,
+                    &image.0,
                     TexelCopyBufferLayout{
                         offset: 0,
-                        bytes_per_row: Some(4 * dimensions.0),
-                        rows_per_image: Some(dimensions.1),
+                        bytes_per_row: Some(4 * image.1),
+                        rows_per_image: Some(image.2),
                     },
                     size
                 );
@@ -91,12 +87,15 @@ impl ImageAtlas {
                         label: None,
                     }
                 ));
-                entry.insert((bind_group, dimensions));
-            }
+                InnerImage(bind_group, (image.1, image.2))
+            });
+            (image, Some(inner_image))
         })
+        ).collect());
     }
 
-    pub fn get(&self, key: &ImageKey) -> (Arc<BindGroup>, (u32, u32)) {
-        self.cached.get(key).expect("Image not found for ImageKey").clone()
+    pub fn get(&self, key: &ImagePointer) -> InnerImage {
+        self.0.as_ref().unwrap().get(key).expect("Image not found in Atlas").clone().unwrap()
     }
 }
+impl Default for ImageAtlas {fn default() -> Self {ImageAtlas(Some(HashMap::new()))}}

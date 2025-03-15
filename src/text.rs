@@ -1,22 +1,20 @@
 use glyphon::{Resolution, SwashCache, FontSystem, TextBounds, TextAtlas, Viewport, Metrics, Shaping, Buffer, Family, Color, Cache, Attrs, Wrap};
 use wgpu::{DepthStencilState, MultisampleState, TextureFormat, RenderPass, Device, Queue};
-use glyphon::fontdb::{Database, Source};
+use glyphon::fontdb::{Database, Source, ID};
+
+use std::sync::Arc;
+use std::collections::HashMap;
 
 use super::Area;
 
-use std::collections::HashMap;
-use std::collections::hash_map::Entry;
-use std::hash::{DefaultHasher, Hasher, Hash};
-use std::sync::Arc;
-
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 pub struct Text {
     pub text: &'static str,
     pub color: (u8, u8, u8, u8),
     pub width: Option<u32>,
     pub size: u32,
     pub line_height: u32,
-    pub font: FontKey,
+    pub font: FontPointer,
 }
 
 impl Text {
@@ -26,71 +24,72 @@ impl Text {
         width: Option<u32>,
         size: u32,
         line_height: u32,
-        font: FontKey,
+        font: FontPointer,
     ) -> Self {
         Text{text, color, width, size, line_height, font}
     }
-
-    fn into_buffer(self, font_atlas: &mut FontAtlas, metadata: usize) -> Buffer {
-        let font = font_atlas.get(&self.font).metadata(metadata);
-        let metrics = Metrics::new(self.size as f32, self.line_height as f32);
-        let mut buffer = Buffer::new(&mut font_atlas.font_system, metrics);
-        buffer.set_wrap(&mut font_atlas.font_system, Wrap::WordOrGlyph);
-        buffer.set_size(&mut font_atlas.font_system, self.width.map(|w| w as f32), None);
-        buffer.set_text(&mut font_atlas.font_system, self.text, font, Shaping::Advanced);
-        buffer
-    }
 }
 
-pub type FontKey = u64;
+pub type FontPointer = Arc<(ID, Attrs<'static>)>;
 
-pub struct FontAtlas {
-    fonts: HashMap<FontKey, Arc<Attrs<'static>>>,
-    font_system: FontSystem,
+pub struct FontAtlas{
+    fonts: Option<HashMap<Arc<Vec<u8>>, FontPointer>>,
+    font_system: FontSystem
 }
 
 impl FontAtlas {
-    pub fn new() -> Self {
-        FontAtlas{
-            fonts: HashMap::new(),
-            font_system: FontSystem::new_with_locale_and_db("".to_string(), Database::new())
-        }
-    }
-
-    pub fn add(&mut self, font: Vec<u8>) -> FontKey {
-        let mut hasher = DefaultHasher::new();
-        font.hash(&mut hasher);
-        let key = hasher.finish();
-
-        if let Entry::Vacant(entry) = self.fonts.entry(key) {
-            let database = self.font_system.db_mut();
-            let id = database.load_font_source(Source::Binary(Arc::new(font)))[0];
-            let face = database.face(id).unwrap();
-            let attrs = Attrs::new()
-                .family(Family::<'static>::Name(face.families[0].0.clone().leak()))
-                .stretch(face.stretch)
-                .style(face.style)
-                .weight(face.weight);
-            entry.insert(Arc::new(attrs));
-        }
-        key
-    }
-
-    pub fn remove(&mut self, key: &FontKey) {self.fonts.remove(key);}
-
-    pub fn messure_text(&mut self, t: &Text) -> (u32, u32) {
-        t.into_buffer(self, 0).lines.first().map(|line|
+    pub fn messure_text(&mut self, text: &Text) -> (u32, u32) {
+        self.text_to_buffer(text, 0).lines.first().map(|line|
             line.layout_opt().as_ref().unwrap().iter().fold((0, 0), |(w, h), span| {
                 (w.max(span.w as u32), h+span.line_height_opt.unwrap_or(span.max_ascent+span.max_descent) as u32)
             })
         ).unwrap_or((0, 0))
     }
 
-    fn get(&self, key: &FontKey) -> Arc<Attrs<'static>> {
-        self.fonts.get(key).expect("Font could not be found for Key").clone()
+    pub fn add(&mut self, raw_font: Vec<u8>) -> FontPointer {
+        let raw_font = Arc::new(raw_font);
+        match self.fonts.as_mut().unwrap().get(&raw_font) {
+            Some(font) => font.clone(),
+            None => {
+                let database = self.font_system.db_mut();
+                let id = database.load_font_source(Source::Binary(raw_font.clone()))[0];
+                let face = database.face(id).unwrap();
+                let attrs = Attrs::new()
+                    .family(Family::<'static>::Name(face.families[0].0.clone().leak()))
+                    .stretch(face.stretch)
+                    .style(face.style)
+                    .weight(face.weight);
+                let font = Arc::new((id, attrs));
+                self.fonts.as_mut().unwrap().insert(raw_font, font.clone());
+                font
+            }
+        }
+    }
+
+    fn text_to_buffer(&mut self, text: &Text, metadata: usize) -> Buffer {
+        let font_attrs = text.font.1.metadata(metadata);
+        let metrics = Metrics::new(text.size as f32, text.line_height as f32);
+        let mut buffer = Buffer::new(&mut self.font_system, metrics);
+        buffer.set_wrap(&mut self.font_system, Wrap::WordOrGlyph);
+        buffer.set_size(&mut self.font_system, text.width.map(|w| w as f32), None);
+        buffer.set_text(&mut self.font_system, text.text, font_attrs, Shaping::Advanced);
+        buffer
+    }
+
+    fn trim(&mut self) {
+        self.fonts = Some(self.fonts.take().unwrap().into_iter().filter_map(|(k, v)| match Arc::try_unwrap(v) {
+            Err(av) => Some((k, av)),
+            Ok(v) => {self.font_system.db_mut().remove_face(v.0); None}
+        }).collect());
     }
 }
-impl Default for FontAtlas {fn default() -> Self {Self::new()}}
+
+impl Default for FontAtlas {fn default() -> Self {
+    FontAtlas{
+        fonts: Some(HashMap::new()),
+        font_system: FontSystem::new_with_locale_and_db("".to_string(), Database::new())
+    }
+}}
 
 pub struct TextRenderer {
     text_renderer: glyphon::TextRenderer,
@@ -129,11 +128,12 @@ impl TextRenderer {
         font_atlas: &mut FontAtlas,
         text_areas: Vec<(Text, Area)>
     ) {
+        font_atlas.trim();
         self.text_atlas.trim();
         self.viewport.update(queue, Resolution{width, height});
 
         let buffers = text_areas.iter().map(|(t, a)|
-            t.into_buffer(font_atlas, a.z_index as usize)
+            font_atlas.text_to_buffer(t, a.z_index as usize)
         ).collect::<Vec<_>>();
 
         let text_areas = text_areas.into_iter().zip(buffers.iter()).map(|((t, a), b)| {

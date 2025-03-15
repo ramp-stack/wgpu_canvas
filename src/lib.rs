@@ -4,52 +4,78 @@ mod shape;
 mod image;
 mod text;
 
-pub use shape::{ShapeKey, Shape, Ellipse};
-pub use image::{ImageKey, Image};
-pub use text::{FontKey, Text};
+pub use shape::Shape;
+pub use text::Text;
 
-use shape::{ShapeAtlas};
-use image::{ImageRenderer, ImageAtlas};
-use text::{TextRenderer, FontAtlas};
+use image::{ImageRenderer, ImageAtlas, ImagePointer, RawImage};
+use text::{TextRenderer, FontAtlas, FontPointer};
 
 #[derive(Debug, Clone, Copy)]
 pub struct Area {
-    pub z_index: u16,
+    pub z_index: u16,//area.z_index = u16::MAX-area.z_index;
     pub offset: (u32, u32),
     pub bounds: (u32, u32, u32, u32)
 }
 
-#[derive(Debug, Clone, Copy)]
-pub enum ItemType {
-    Shape(ShapeKey),
-    Image(ImageKey),
+#[derive(Clone, Debug)]
+pub struct Font(FontPointer);
+
+impl Font {
+    pub fn new(atlas: &mut CanvasAtlas, bytes: Vec<u8>) -> Self {
+        Font(atlas.font.add(bytes))
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct Image(ImagePointer);
+
+impl Image {
+    pub fn new(atlas: &mut CanvasAtlas, bytes: Vec<u8>, width: u32, height: u32) -> Self {
+        Image(atlas.image.add(RawImage(bytes, width, height)))
+    }
+}
+
+#[derive(Clone, Debug)]
+pub enum CanvasItem {
+    Shape(ImagePointer),
+    Image(ImagePointer),
     Text(Text),
 }
 
-#[derive(Debug, Clone, Copy)]
-pub struct CanvasItem {
-    pub area: Area,
-    pub item_type: ItemType,
+impl CanvasItem {
+    pub fn text(
+        text: &'static str,
+        color: (u8, u8, u8, u8),
+        width: Option<u32>,
+        size: u32,
+        line_height: u32,
+        font: Font,
+    ) -> Self {
+        CanvasItem::Text(Text::new(text, color, width, size, line_height, font.0))
+    }
+
+    pub fn shape(atlas: &mut CanvasAtlas, shape: Shape, color: (u8, u8, u8, u8)) -> Self {
+        CanvasItem::Shape(atlas.image.add(shape.color(color)))
+    }
+
+    pub fn image(atlas: &mut CanvasAtlas, shape: Shape, image: Image) -> Self {
+        CanvasItem::Image(atlas.image.add(shape.image(image.0)))
+    }
+
+    pub fn size(&self, atlas: &mut CanvasAtlas) -> (u32, u32) {
+        match self {
+            CanvasItem::Shape(image) => (image.1, image.2),
+            CanvasItem::Image(image) => (image.1, image.2),
+            CanvasItem::Text(text) => atlas.font.messure_text(text),
+        }
+    }
 }
+
 
 #[derive(Default)]
 pub struct CanvasAtlas {
-    shape: ShapeAtlas,
     image: ImageAtlas,
     font: FontAtlas,
-}
-
-impl CanvasAtlas {
-    pub fn add_shape(&mut self, shape: impl Shape) -> ShapeKey {self.shape.add(shape, &mut self.image)}
-    pub fn remove_shape(&mut self, key: &ShapeKey) {self.shape.remove(key)}
-
-    pub fn add_image(&mut self, image: Image) -> ImageKey {self.image.add(image)}
-    pub fn remove_image(&mut self, key: &ImageKey) {self.image.remove(key)}
-
-    pub fn add_font(&mut self, font: Vec<u8>) -> FontKey {self.font.add(font)}
-    pub fn remove_font(&mut self, key: &FontKey) {self.font.remove(key)}
-
-    pub fn messure_text(&mut self, t: &Text) -> (u32, u32) {self.font.messure_text(t)}
 }
 
 pub struct CanvasRenderer {
@@ -68,7 +94,7 @@ impl CanvasRenderer {
     ) -> Self {
         CanvasRenderer{
             image_renderer: ImageRenderer::new(device, texture_format, multisample, depth_stencil.clone()),
-            text_renderer: TextRenderer::new(device, queue, texture_format, multisample, depth_stencil.clone()),
+            text_renderer: TextRenderer::new(device, queue, texture_format, multisample, depth_stencil),
         }
     }
 
@@ -82,20 +108,20 @@ impl CanvasRenderer {
         width: u32,
         height: u32,
         atlas: &mut CanvasAtlas,
-        items: Vec<CanvasItem>
+        items: Vec<(Area, CanvasItem)>,
     ) {
-        let (images, texts) = items.into_iter().fold(
-            (vec![], vec![]), |mut a, item| {
-                let mut area = item.area;
-                area.z_index = u16::MAX-area.z_index;
-                match item.item_type {
-                    ItemType::Shape(shape) => a.0.push((atlas.shape.get(&shape), area)),
-                    ItemType::Image(image) => a.0.push((image, area)),
-                    ItemType::Text(text) => a.1.push((text, area)),
-                };
-                a
+        let (images, texts) = items.into_iter().fold((vec![], vec![]), |mut a, (area, item)| {
+            match item {
+                CanvasItem::Shape(image) => a.0.push((image, area)),
+                CanvasItem::Image(image) => a.0.push((image, area)),
+                CanvasItem::Text(text) => a.1.push((text, area)),
             }
-        );
+            a
+        });
+
+      //let mut images: Vec<(ImagePointer, Area)> = images.into_iter().map(|(i, a)| (i.0, a)).collect();
+      //images.extend(shapes.into_iter().map(|(s, a)| (s.0, a)));
+      //let texts = texts.into_iter().map(|(t, a)| (t.0, a)).collect();
 
         self.image_renderer.prepare(device, queue, width, height, &mut atlas.image, images);
         self.text_renderer.prepare(device, queue, width, height, &mut atlas.font, texts);

@@ -4,7 +4,7 @@ use wgpu_dyn_buffer::{DynamicBufferDescriptor, DynamicBuffer};
 use std::sync::Arc;
 use std::collections::HashMap;
 use crate::Area;
-use super::{ImageAtlas, ImageKey};
+use super::{ImageAtlas, InnerImage, ImagePointer};
 
 
 #[repr(C)]
@@ -119,19 +119,19 @@ impl ImageRenderer {
         width: u32,
         height: u32,
         image_atlas: &mut ImageAtlas,
-        img_area: Vec<(ImageKey, Area)>,
+        img_area: Vec<(ImagePointer, Area)>,
     ) {
+        image_atlas.trim_and_bind(queue, device, &self.bind_group_layout);
         self.indices.clear();
 
-        image_atlas.prepare(queue, device, &self.bind_group_layout);
 
         let w = |x: f32| ((x / width as f32) * 2.0) - 1.0;
         let h = |y: f32| 1.0 - ((y / height as f32) * 2.0);
 
         let (vertices, indices, indices_buffer) = img_area.into_iter().fold(
             (vec![], vec![], HashMap::<Arc<BindGroup>, Vec<(u32, u32)>>::new()),
-            |mut a, (key, area)| {
-                let (image, size) = image_atlas.get(&key);
+            |mut a, (image, area)| {
+                let InnerImage(image, size) = image_atlas.get(&image);
                 let start = a.1.len();
 
                 let x = w(area.offset.0 as f32);
