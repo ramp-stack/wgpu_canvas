@@ -78,9 +78,6 @@ fn alpha(uv: vec2<f32>, size: vec2<f32>, stroke: f32, cr: f32) -> f32 {
     return (1.0-smoothstep(1.0, 1.0+p, d)) * s;
 }
 
-@group(0) @binding(0)
-var t_diffuse: texture_2d<f32>;
-
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     if in.uv.x < in.bounds[0] || in.uv.x > in.bounds[2] ||
@@ -88,7 +85,6 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         discard;
     }
     let coords = vec2<u32>(u32(floor(in.uv.x)), u32(floor(in.uv.y)));
-    let color = textureLoad(t_diffuse, coords, 0);
     let alpha = alpha(in.uv, in.size, in.stroke, in.corner_radius);
-    return vec4<f32>(color[0], color[1], color[2], color[3]*alpha);
+    return vec4<f32>(1.0, 1.0, 1.0, 1.0*alpha);
 }

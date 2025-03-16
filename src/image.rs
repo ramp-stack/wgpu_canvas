@@ -10,7 +10,7 @@ pub(crate) use renderer::ImageRenderer;
 
 pub type Image = Arc<RgbaImage>;
 
-pub type InnerImage = Arc<BindGroup>;//, (u32, u32));
+pub type InnerImage = Arc<BindGroup>;
 
 #[derive(Debug)]
 pub struct ImageAtlas(Option<HashMap<Image, Option<InnerImage>>>);

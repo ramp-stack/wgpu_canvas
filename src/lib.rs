@@ -1,11 +1,11 @@
 use wgpu::{DepthStencilState, MultisampleState, TextureFormat, RenderPass, Device, Queue};
 
 mod shape;
+mod color;
 mod image;
 mod text;
 
-//pub use shape::Shape;
-
+use color::ColorRenderer;
 use image::{ImageRenderer, ImageAtlas};
 use text::{TextRenderer, FontAtlas};
 
@@ -90,6 +90,7 @@ pub struct CanvasAtlas {
 }
 
 pub struct CanvasRenderer {
+    color_renderer: ColorRenderer,
     image_renderer: ImageRenderer,
     text_renderer: TextRenderer,
 }
@@ -104,6 +105,7 @@ impl CanvasRenderer {
         depth_stencil: Option<DepthStencilState>,
     ) -> Self {
         CanvasRenderer{
+            color_renderer: ColorRenderer::new(device, texture_format, multisample, depth_stencil.clone()),
             image_renderer: ImageRenderer::new(device, texture_format, multisample, depth_stencil.clone()),
             text_renderer: TextRenderer::new(device, queue, texture_format, multisample, depth_stencil),
         }
@@ -121,21 +123,23 @@ impl CanvasRenderer {
         atlas: &mut CanvasAtlas,
         items: Vec<(Area, CanvasItem)>,
     ) {
-        let (images, texts) = items.into_iter().fold((vec![], vec![]), |mut a, (area, item)| {
+        let (colors, images, texts) = items.into_iter().fold((vec![], vec![], vec![]), |mut a, (area, item)| {
             match item {
-                CanvasItem::Shape(shape, color) => {},//a.0.push((image, area)),
-                CanvasItem::Image(shape, image) => a.0.push((shape, image.into_inner(), area)),
-                CanvasItem::Text(text) => a.1.push((text.into_inner(), area)),
+                CanvasItem::Shape(shape, color) => a.0.push((shape, color, area)),
+                CanvasItem::Image(shape, image) => a.1.push((shape, image.into_inner(), area)),
+                CanvasItem::Text(text) => a.2.push((text.into_inner(), area)),
             }
             a
         });
 
+        self.color_renderer.prepare(device, queue, width, height, colors);
         self.image_renderer.prepare(device, queue, width, height, &mut atlas.image, images);
         self.text_renderer.prepare(device, queue, width, height, &mut atlas.font, texts);
     }
 
     /// Render using caller provided render pass.
     pub fn render<'a>(&'a self, render_pass: &mut RenderPass<'a>) {
+        self.color_renderer.render(render_pass);
         self.image_renderer.render(render_pass);
         self.text_renderer.render(render_pass);
     }

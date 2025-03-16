@@ -82,6 +82,33 @@ impl RoundedRectangleVertex {
     }
 }
 
+//  #[repr(C)]
+//  #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
+//  pub(crate) struct ColorVertex {
+//      pub shape: ShapeVertex,
+//      pub color: [f32; 4]
+//  }
+
+//  impl ColorVertex {
+//      const ATTRIBS: [wgpu::VertexAttribute; 7] =
+//          wgpu::vertex_attr_array![0 => Float32x2, 1 => Float32x2, 2 => Float32x2, 3 => Float32x4, 4 => Float32, 5 => Float32, 6 => Float32x4];
+
+//      pub fn layout() -> VertexBufferLayout<'static> {
+//          VertexBufferLayout {
+//              array_stride: std::mem::size_of::<Self>() as BufferAddress,
+//              step_mode: VertexStepMode::Vertex,
+//              attributes: &Self::ATTRIBS,
+//          }
+//      }
+
+//      pub fn new(width: u32, height: u32, area: Area, stroke: u32, size: (u32, u32), color: (u8, u8, u8, u8)) -> [ShapeVertex; 4] {
+//          ShapeVertex::new(width, height, area, stroke, size).into_iter().map(|shape|
+//              ColorVertex{shape, color: [color.0 as f32, color.1 as f32, color.2 as f32, color.3 as f32]}
+//          ).collect::<Vec<_>>().try_into().unwrap()
+//      }
+//  }
+
+
 //  #[derive(Clone, Debug, Copy)]
 //  pub struct Ellipse(u32, (u32, u32));
 
