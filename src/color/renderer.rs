@@ -1,10 +1,9 @@
-use wgpu::{PipelineCompilationOptions, BindGroupLayoutDescriptor, RenderPipelineDescriptor, PipelineLayoutDescriptor, TextureViewDimension, BindGroupLayoutEntry, DepthStencilState, TextureSampleType, MultisampleState, BindGroupLayout, RenderPipeline, PrimitiveState, FragmentState, TextureFormat, ShaderStages, BufferUsages, IndexFormat, VertexState, BindingType, RenderPass, BindGroup, Device, Queue, VertexBufferLayout, VertexStepMode, BufferAddress, ShaderModule};
+use wgpu::{PipelineCompilationOptions, RenderPipelineDescriptor, PipelineLayoutDescriptor, DepthStencilState, MultisampleState, RenderPipeline, PrimitiveState, FragmentState, TextureFormat, BufferUsages, IndexFormat, VertexState, RenderPass, Device, Queue, VertexBufferLayout, ShaderModule};
 use wgpu_dyn_buffer::{DynamicBufferDescriptor, DynamicBuffer};
 
-use std::collections::HashMap;
 use crate::{Area, Shape};
 
-use crate::shape::{ShapeVertex, RoundedRectangleVertex};
+use crate::shape::{ColorVertex, RoundedRectangleColorVertex, Color};
 
 pub struct ColorRenderer {
     ellipse_renderer: GenericColorRenderer,
@@ -21,11 +20,11 @@ impl ColorRenderer {
         depth_stencil: Option<DepthStencilState>,
     ) -> Self {
         let shader = device.create_shader_module(wgpu::include_wgsl!("ellipse.wgsl"));
-        let ellipse_renderer = GenericColorRenderer::new(device, texture_format, multisample, depth_stencil.clone(), shader, ShapeVertex::layout());
+        let ellipse_renderer = GenericColorRenderer::new(device, texture_format, multisample, depth_stencil.clone(), shader, ColorVertex::layout());
         let shader = device.create_shader_module(wgpu::include_wgsl!("rectangle.wgsl"));
-        let rectangle_renderer = GenericColorRenderer::new(device, texture_format, multisample, depth_stencil.clone(), shader, ShapeVertex::layout());
+        let rectangle_renderer = GenericColorRenderer::new(device, texture_format, multisample, depth_stencil.clone(), shader, ColorVertex::layout());
         let shader = device.create_shader_module(wgpu::include_wgsl!("rounded_rectangle.wgsl"));
-        let rounded_rectangle_renderer = GenericColorRenderer::new(device, texture_format, multisample, depth_stencil.clone(), shader, RoundedRectangleVertex::layout());
+        let rounded_rectangle_renderer = GenericColorRenderer::new(device, texture_format, multisample, depth_stencil.clone(), shader, RoundedRectangleColorVertex::layout());
         ColorRenderer{
             ellipse_renderer,
             rectangle_renderer,
@@ -41,23 +40,23 @@ impl ColorRenderer {
         queue: &Queue,
         width: u32,
         height: u32,
-        items: Vec<(Shape, (u8, u8, u8, u8), Area)>,
+        items: Vec<(Shape, Color, Area)>,
     ) {
         let (ellipses, rects, rounded_rects) = items.into_iter().fold(
             (vec![], vec![], vec![]),
             |mut a, (shape, color, area)| {
                 match shape {
-                    Shape::Ellipse(stroke, size) => a.0.push(ShapeVertex::new(width, height, area, stroke, size)),
-                    Shape::Rectangle(stroke, size) => a.1.push(ShapeVertex::new(width, height, area, stroke, size)),
+                    Shape::Ellipse(stroke, size) => a.0.push(ColorVertex::new(width, height, area, stroke, size, color)),
+                    Shape::Rectangle(stroke, size) => a.1.push(ColorVertex::new(width, height, area, stroke, size, color)),
                     Shape::RoundedRectangle(stroke, size, corner_radius) =>
-                        a.2.push(RoundedRectangleVertex::new(width, height, area, stroke, size, corner_radius)),
+                        a.2.push(RoundedRectangleColorVertex::new(width, height, area, stroke, size, corner_radius, color)),
                 }
                 a
             }
         );
-        self.ellipse_renderer.prepare(device, queue, width, height, ellipses);
-        self.rectangle_renderer.prepare(device, queue, width, height, rects);
-        self.rounded_rectangle_renderer.prepare(device, queue, width, height, rounded_rects);
+        self.ellipse_renderer.prepare(device, queue, ellipses);
+        self.rectangle_renderer.prepare(device, queue, rects);
+        self.rounded_rectangle_renderer.prepare(device, queue, rounded_rects);
     }
 
     /// Render using caller provided render pass.
@@ -139,13 +138,11 @@ impl GenericColorRenderer {
         &mut self,
         device: &Device,
         queue: &Queue,
-        width: u32,
-        height: u32,
         vertices: Vec<[V; 4]>,
     ) {
 
         let (vertices, indices) = vertices.into_iter().fold(
-            (vec![], vec![]), |mut a, (vertices)| {
+            (vec![], vec![]), |mut a, vertices| {
                 let l = a.0.len() as u16;
                 a.0.extend(vertices);
                 a.1.extend([l, l+1, l+2, l+1, l+2, l+3]);

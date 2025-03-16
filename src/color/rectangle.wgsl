@@ -5,6 +5,7 @@ struct ShapeInput {
     @location(3) bounds: vec4<f32>,
     @location(4) z: f32,
     @location(5) stroke: f32,
+    @location(6) color: vec4<f32>
 }
 
 struct VertexOutput {
@@ -13,6 +14,7 @@ struct VertexOutput {
     @location(1) @interpolate(flat) size: vec2<f32>,
     @location(2) @interpolate(flat) bounds: vec4<f32>,
     @location(3) @interpolate(flat) stroke: f32,
+    @location(4) @interpolate(flat) color: vec4<f32>
 };
 
 @vertex
@@ -27,6 +29,7 @@ fn vs_main(
 
     out.bounds = shape.bounds;
     out.stroke = shape.stroke;
+    out.color = shape.color;
 
     return out;
 }
@@ -44,5 +47,5 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             discard;
         }
     }
-    return vec4<f32>(1.0, 1.0, 1.0, 1.0);
+    return in.color;
 }

@@ -11,7 +11,7 @@ use text::{TextRenderer, FontAtlas};
 
 #[derive(Debug, Clone, Copy)]
 pub struct Area {
-    pub z_index: u16,//area.z_index = u16::MAX-area.z_index;
+    pub z_index: u16,//;
     pub offset: (u32, u32),
     pub bounds: (u32, u32, u32, u32)
 }
@@ -38,6 +38,10 @@ impl Text {
         Text{text, color, width, size, line_height, font}
     }
 
+    pub fn size(&self, atlas: &mut CanvasAtlas) -> (u32, u32) {
+        atlas.font.messure_text(&self.clone().into_inner())
+    }
+
     fn into_inner(self) -> text::Text {
         text::Text{text: self.text, color: self.color, width: self.width, size: self.size, line_height: self.line_height, font: self.font.into_inner()}
     }
@@ -48,6 +52,16 @@ pub enum Shape {
     Ellipse(u32, (u32, u32)),
     Rectangle(u32, (u32, u32)),
     RoundedRectangle(u32, (u32, u32), u32),
+}
+
+impl Shape {
+    pub fn size(&self) -> (u32, u32) {
+        match self {
+            Shape::Ellipse(_, size) => *size,
+            Shape::Rectangle(_, size) => *size,
+            Shape::RoundedRectangle(_, size, _) => *size,
+        }
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -81,6 +95,16 @@ pub enum CanvasItem {
     Shape(Shape, (u8, u8, u8, u8)),
     Image(Shape, Image),
     Text(Text),
+}
+
+impl CanvasItem {
+    pub fn size(&self, atlas: &mut CanvasAtlas) -> (u32, u32) {
+        match self {
+            CanvasItem::Shape(shape, _) => shape.size(),
+            CanvasItem::Image(shape, _) => shape.size(),
+            CanvasItem::Text(text) => text.size(atlas)
+        }
+    }
 }
 
 #[derive(Default)]
@@ -123,7 +147,8 @@ impl CanvasRenderer {
         atlas: &mut CanvasAtlas,
         items: Vec<(Area, CanvasItem)>,
     ) {
-        let (colors, images, texts) = items.into_iter().fold((vec![], vec![], vec![]), |mut a, (area, item)| {
+        let (colors, images, texts) = items.into_iter().fold((vec![], vec![], vec![]), |mut a, (mut area, item)| {
+            area.z_index = u16::MAX-area.z_index;
             match item {
                 CanvasItem::Shape(shape, color) => a.0.push((shape, color, area)),
                 CanvasItem::Image(shape, image) => a.1.push((shape, image.into_inner(), area)),

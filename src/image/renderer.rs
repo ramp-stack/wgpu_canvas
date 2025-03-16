@@ -1,4 +1,4 @@
-use wgpu::{PipelineCompilationOptions, BindGroupLayoutDescriptor, RenderPipelineDescriptor, PipelineLayoutDescriptor, TextureViewDimension, BindGroupLayoutEntry, DepthStencilState, TextureSampleType, MultisampleState, BindGroupLayout, RenderPipeline, PrimitiveState, FragmentState, TextureFormat, ShaderStages, BufferUsages, IndexFormat, VertexState, BindingType, RenderPass, BindGroup, Device, Queue, VertexBufferLayout, VertexStepMode, BufferAddress, ShaderModule};
+use wgpu::{PipelineCompilationOptions, BindGroupLayoutDescriptor, RenderPipelineDescriptor, PipelineLayoutDescriptor, TextureViewDimension, BindGroupLayoutEntry, DepthStencilState, TextureSampleType, MultisampleState, BindGroupLayout, RenderPipeline, PrimitiveState, FragmentState, TextureFormat, ShaderStages, BufferUsages, IndexFormat, VertexState, BindingType, RenderPass, Device, Queue, VertexBufferLayout, ShaderModule};
 use wgpu_dyn_buffer::{DynamicBufferDescriptor, DynamicBuffer};
 
 use std::collections::HashMap;
@@ -78,9 +78,9 @@ impl ImageRenderer {
                 a
             }
         );
-        self.ellipse_renderer.prepare(device, queue, width, height, ellipses);
-        self.rectangle_renderer.prepare(device, queue, width, height, rects);
-        self.rounded_rectangle_renderer.prepare(device, queue, width, height, rounded_rects);
+        self.ellipse_renderer.prepare(device, queue, ellipses);
+        self.rectangle_renderer.prepare(device, queue, rects);
+        self.rounded_rectangle_renderer.prepare(device, queue, rounded_rects);
     }
 
     /// Render using caller provided render pass.
@@ -167,8 +167,6 @@ impl GenericImageRenderer {
         &mut self,
         device: &Device,
         queue: &Queue,
-        width: u32,
-        height: u32,
         image_vertices: Vec<([V; 4], InnerImage)>,
     ) {
         self.indices.clear();

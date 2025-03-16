@@ -6,6 +6,7 @@ struct ShapeInput {
     @location(4) z: f32,
     @location(5) stroke: f32,
     @location(6) corner_radius: f32,
+    @location(7) color: vec4<f32>,
 }
 
 struct VertexOutput {
@@ -15,6 +16,7 @@ struct VertexOutput {
     @location(2) @interpolate(flat) bounds: vec4<f32>,
     @location(3) @interpolate(flat) stroke: f32,
     @location(4) @interpolate(flat) corner_radius: f32,
+    @location(5) @interpolate(flat) color: vec4<f32>,
 };
 
 @vertex
@@ -30,6 +32,7 @@ fn vs_main(
     out.bounds = shape.bounds;
     out.stroke = shape.stroke;
     out.corner_radius = shape.corner_radius;
+    out.color = shape.color;
 
     return out;
 }
@@ -86,5 +89,5 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     }
     let coords = vec2<u32>(u32(floor(in.uv.x)), u32(floor(in.uv.y)));
     let alpha = alpha(in.uv, in.size, in.stroke, in.corner_radius);
-    return vec4<f32>(1.0, 1.0, 1.0, 1.0*alpha);
+    return vec4<f32>(in.color[0], in.color[1], in.color[2], in.color[3]*alpha);
 }
