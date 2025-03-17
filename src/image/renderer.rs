@@ -1,4 +1,4 @@
-use wgpu::{PipelineCompilationOptions, BindGroupLayoutDescriptor, RenderPipelineDescriptor, PipelineLayoutDescriptor, TextureViewDimension, BindGroupLayoutEntry, DepthStencilState, TextureSampleType, MultisampleState, BindGroupLayout, RenderPipeline, PrimitiveState, FragmentState, TextureFormat, ShaderStages, BufferUsages, IndexFormat, VertexState, BindingType, RenderPass, Device, Queue, VertexBufferLayout, ShaderModule};
+use wgpu::{PipelineCompilationOptions, BindGroupLayoutDescriptor, RenderPipelineDescriptor, PipelineLayoutDescriptor, TextureViewDimension, BindGroupLayoutEntry, DepthStencilState, TextureSampleType, MultisampleState, BindGroupLayout, RenderPipeline, PrimitiveState, FragmentState, TextureFormat, ShaderStages, BufferUsages, IndexFormat, VertexState, BindingType, RenderPass, Device, Queue, VertexBufferLayout, ShaderModule, Sampler, SamplerBindingType};
 use wgpu_dyn_buffer::{DynamicBufferDescriptor, DynamicBuffer};
 
 use std::collections::HashMap;
@@ -9,6 +9,7 @@ use crate::shape::{ShapeVertex, RoundedRectangleVertex};
 
 pub struct ImageRenderer {
     bind_group_layout: BindGroupLayout,
+    sampler: Sampler,
     ellipse_renderer: GenericImageRenderer,
     rectangle_renderer: GenericImageRenderer,
     rounded_rectangle_renderer: GenericImageRenderer,
@@ -31,11 +32,28 @@ impl ImageRenderer {
                     ty: BindingType::Texture {
                         multisampled: false,
                         view_dimension: TextureViewDimension::D2,
-                        sample_type: TextureSampleType::Float{filterable: false},
+                        sample_type: TextureSampleType::Float{filterable: true},
                     },
+                    count: None,
+                },
+                BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: ShaderStages::FRAGMENT,
+                    ty: BindingType::Sampler(SamplerBindingType::Filtering),
                     count: None,
                 }
             ]
+        });
+
+        let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
+            address_mode_u: wgpu::AddressMode::ClampToEdge,
+            address_mode_v: wgpu::AddressMode::ClampToEdge,
+            address_mode_w: wgpu::AddressMode::ClampToEdge,
+            mag_filter: wgpu::FilterMode::Linear,
+            min_filter: wgpu::FilterMode::Linear,
+            mipmap_filter: wgpu::FilterMode::Linear,
+            anisotropy_clamp: u16::MAX/2,
+            ..Default::default()
         });
 
         let shader = device.create_shader_module(wgpu::include_wgsl!("ellipse.wgsl"));
@@ -46,6 +64,7 @@ impl ImageRenderer {
         let rounded_rectangle_renderer = GenericImageRenderer::new(device, texture_format, multisample, depth_stencil.clone(), &bind_group_layout, shader, RoundedRectangleVertex::layout());
         ImageRenderer{
             bind_group_layout,
+            sampler,
             ellipse_renderer,
             rectangle_renderer,
             rounded_rectangle_renderer
@@ -63,7 +82,7 @@ impl ImageRenderer {
         image_atlas: &mut ImageAtlas,
         items: Vec<(Shape, Image, Area)>,
     ) {
-        image_atlas.trim_and_bind(queue, device, &self.bind_group_layout);
+        image_atlas.trim_and_bind(queue, device, &self.bind_group_layout, &self.sampler);
 
         let (ellipses, rects, rounded_rects) = items.into_iter().fold(
             (vec![], vec![], vec![]),

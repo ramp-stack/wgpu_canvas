@@ -1,4 +1,4 @@
-use wgpu::{BindGroup, TextureViewDescriptor, TexelCopyBufferLayout, TextureAspect, Origin3d, TextureUsages, TexelCopyTextureInfo, Extent3d, TextureDimension, TextureDescriptor, TextureFormat, BindGroupLayout, Device, Queue};
+use wgpu::{BindGroup, TextureViewDescriptor, TexelCopyBufferLayout, TextureAspect, Origin3d, TextureUsages, TexelCopyTextureInfo, Extent3d, TextureDimension, TextureDescriptor, TextureFormat, BindGroupLayout, Device, Queue, Sampler};
 
 pub use image::RgbaImage;
 
@@ -32,6 +32,7 @@ impl ImageAtlas {
         queue: &Queue,
         device: &Device,
         layout: &BindGroupLayout,
+        sampler: &Sampler
     ) {
         self.0 = Some(self.0.take().unwrap().into_iter().filter_map(|(k, v)| Arc::try_unwrap(k).err().map(|image| {
             let inner_image = v.unwrap_or_else(|| {
@@ -80,6 +81,10 @@ impl ImageAtlas {
                             wgpu::BindGroupEntry {
                                 binding: 0,
                                 resource: wgpu::BindingResource::TextureView(&texture_view),
+                            },
+                            wgpu::BindGroupEntry {
+                                binding: 1,
+                                resource: wgpu::BindingResource::Sampler(sampler),
                             }
                         ],
                         label: None,
