@@ -2,7 +2,7 @@ use wgpu::{PipelineCompilationOptions, BindGroupLayoutDescriptor, RenderPipeline
 use wgpu_dyn_buffer::{DynamicBufferDescriptor, DynamicBuffer};
 
 use std::collections::HashMap;
-use crate::{Area, Shape};
+use crate::{Area, Color, Shape};
 use super::{ImageAtlas, InnerImage, Image};
 
 use crate::shape::{Vertex, ImageVertex, ShapeVertex, RoundedRectangleVertex};
@@ -79,19 +79,19 @@ impl ImageRenderer {
         width: u32,
         height: u32,
         image_atlas: &mut ImageAtlas,
-        items: Vec<(Shape, Image, Area)>,
+        items: Vec<(Area, Shape, Image, Option<Color>)>,
     ) {
         image_atlas.trim_and_bind(queue, device, &self.bind_group_layout, &self.sampler);
 
         let (ellipses, rects, rounded_rects) = items.into_iter().fold(
             (vec![], vec![], vec![]),
-            |mut a, (shape, key, area)| {
+            |mut a, (area, shape, key, color)| {
                 let image = image_atlas.get(&key);
                 match shape {
-                    Shape::Ellipse(stroke, size) => a.0.push((ImageVertex::new(ShapeVertex::new(width, height, area, stroke, size), &key, size), image)),
-                    Shape::Rectangle(stroke, size) => a.1.push((ImageVertex::new(ShapeVertex::new(width, height, area, stroke, size), &key, size), image)),
+                    Shape::Ellipse(stroke, size) => a.0.push((ImageVertex::new(ShapeVertex::new(width, height, area, stroke, size), &key, size, color), image)),
+                    Shape::Rectangle(stroke, size) => a.1.push((ImageVertex::new(ShapeVertex::new(width, height, area, stroke, size), &key, size, color), image)),
                     Shape::RoundedRectangle(stroke, size, corner_radius) =>
-                        a.2.push((ImageVertex::new(RoundedRectangleVertex::new(width, height, area, stroke, size, corner_radius), &key, size), image)),
+                        a.2.push((ImageVertex::new(RoundedRectangleVertex::new(width, height, area, stroke, size, corner_radius), &key, size, color), image)),
                 }
                 a
             }
@@ -146,13 +146,7 @@ impl GenericImageRenderer {
                 module: &shader,
                 entry_point: Some("fs_main"),
                 compilation_options: PipelineCompilationOptions::default(),
-                targets: &[
-                    Some(wgpu::ColorTargetState{
-                        format: *texture_format,
-                        blend: Some(wgpu::BlendState::ALPHA_BLENDING),
-                        write_mask: wgpu::ColorWrites::ALL,
-                    })
-                ]
+                targets: &[Some((*texture_format).into())]
             }),
             primitive: PrimitiveState::default(),
             depth_stencil,

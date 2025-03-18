@@ -5,7 +5,8 @@ struct ShapeInput {
     @location(3) bounds: vec4<f32>,
     @location(4) z: f32,
     @location(5) stroke: f32,
-    @location(6) texture: vec2<f32>
+    @location(6) texture: vec2<f32>,
+    @location(7) color: vec4<f32>
 }
 
 struct VertexOutput {
@@ -14,7 +15,8 @@ struct VertexOutput {
     @location(1) @interpolate(flat) size: vec2<f32>,
     @location(2) @interpolate(flat) bounds: vec4<f32>,
     @location(3) @interpolate(flat) stroke: f32,
-    @location(4) texture: vec2<f32>
+    @location(4) texture: vec2<f32>,
+    @location(5) @interpolate(flat) color: vec4<f32>
 };
 
 @vertex
@@ -30,6 +32,7 @@ fn vs_main(
     out.bounds = shape.bounds;
     out.stroke = shape.stroke;
     out.texture = shape.texture;
+    out.color = shape.color;
 
     return out;
 }
@@ -65,6 +68,9 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 
     var alpha = (1.0-smoothstep(1.0, 1.0+p, d)) * stroke;
 
-    let color = textureSample(t_diffuse, s_diffuse, in.texture);
+    var color = textureSample(t_diffuse, s_diffuse, in.texture);
+    if in.color[3] > 0.0 {
+        color = vec4<f32>(in.color[0], in.color[1], in.color[2], in.color[3]*color[3]);
+    }
     return vec4<f32>(color[0], color[1], color[2], color[3]*alpha);
 }

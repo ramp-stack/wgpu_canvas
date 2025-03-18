@@ -1,16 +1,16 @@
-use glyphon::{Resolution, SwashCache, FontSystem, TextBounds, TextAtlas, Viewport, Metrics, Shaping, Buffer, Family, Color, Cache, Attrs, Wrap};
+use glyphon::{Resolution, SwashCache, FontSystem, TextBounds, TextAtlas, Viewport, Metrics, Shaping, Buffer, Family, Cache, Attrs, Wrap};
 use wgpu::{DepthStencilState, MultisampleState, TextureFormat, RenderPass, Device, Queue};
 use glyphon::fontdb::{Database, Source, ID};
 
 use std::sync::Arc;
 use std::collections::HashMap;
 
-use super::Area;
+use super::{Area, Color};
 
 #[derive(Clone, Debug)]
 pub struct Text {
     pub text: &'static str,
-    pub color: (u8, u8, u8, u8),
+    pub color: Color,
     pub width: Option<u32>,
     pub size: u32,
     pub line_height: u32,
@@ -115,17 +115,17 @@ impl TextRenderer {
         width: u32,
         height: u32,
         font_atlas: &mut FontAtlas,
-        text_areas: Vec<(Text, Area)>
+        text_areas: Vec<(Area, Text)>
     ) {
         font_atlas.trim();
         self.text_atlas.trim();
         self.viewport.update(queue, Resolution{width, height});
 
-        let buffers = text_areas.iter().map(|(t, a)|
+        let buffers = text_areas.iter().map(|(a, t)|
             t.to_buffer(&mut font_atlas.font_system, a.z_index as usize)
         ).collect::<Vec<_>>();
 
-        let text_areas = text_areas.into_iter().zip(buffers.iter()).map(|((t, a), b)| {
+        let text_areas = text_areas.into_iter().zip(buffers.iter()).map(|((a, t), b)| {
             let left = a.bounds.0 as i32;
             let top = a.bounds.1 as i32;
             glyphon::TextArea{
@@ -139,7 +139,7 @@ impl TextRenderer {
                     right: left + a.bounds.2 as i32,
                     bottom: top + a.bounds.3 as i32,
                 },
-                default_color: Color::rgba(t.color.0, t.color.1, t.color.2, t.color.3),
+                default_color: glyphon::Color::rgba(t.color.0, t.color.1, t.color.2, t.color.3),
                 custom_glyphs: &[]
             }
         });

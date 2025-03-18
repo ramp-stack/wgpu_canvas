@@ -2,18 +2,8 @@
 
 use wgpu::{VertexBufferLayout, VertexStepMode, BufferAddress, VertexAttribute, VertexFormat};
 
-use super::Area;
+use super::{Area, Color};
 use crate::image::Image;
-
-#[derive(Clone, Copy, Debug)]
-pub struct Color(pub u8, pub u8, pub u8, pub u8);
-
-impl Color {
-    fn color(&self) -> [f32; 4] {
-        let c = |f: u8| (((f as f32 / u8::MAX as f32) + 0.055) / 1.055).powf(2.4);
-        [c(self.0), c(self.1), c(self.2), c(self.3)]
-    }
-}
 
 pub trait Vertex: std::fmt::Debug + bytemuck::Pod + bytemuck::Zeroable{
     fn attributes() -> Vec<VertexFormat> where Self: Sized;
@@ -134,17 +124,18 @@ impl<V: Vertex> ColorVertex<V> {
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct ImageVertex<V: Vertex = ShapeVertex> {
     pub shape: V,
-    pub texture: [f32; 2]
+    pub texture: [f32; 2],
+    pub color: [f32; 4]
 }
 
 impl<V: Vertex> Vertex for ImageVertex<V> {
     fn attributes() -> Vec<VertexFormat> {
-        [V::attributes(), vec![VertexFormat::Float32x2]].concat()
+        [V::attributes(), vec![VertexFormat::Float32x2, VertexFormat::Float32x4]].concat()
     }
 }
 
 impl<V: Vertex> ImageVertex<V> {
-    pub fn new(shape: [V; 4], image: &Image, size: (u32, u32)) -> [ImageVertex<V>; 4] {
+    pub fn new(shape: [V; 4], image: &Image, size: (u32, u32), color: Option<Color>) -> [ImageVertex<V>; 4] {
         let mut x = 0.0;
         let mut y = 0.0;
         let mut x2 = 1.0;
@@ -168,11 +159,13 @@ impl<V: Vertex> ImageVertex<V> {
             y2 = 1.0-d;
         }
 
+        let color = color.map(|c| c.color()).unwrap_or([0.0, 0.0, 0.0, 0.0]);
+
         [
-            ImageVertex{shape: shape[0], texture: [x, y]},
-            ImageVertex{shape: shape[1], texture: [x2, y]},
-            ImageVertex{shape: shape[2], texture: [x, y2]},
-            ImageVertex{shape: shape[3], texture: [x2, y2]},
+            ImageVertex{shape: shape[0], texture: [x, y], color},
+            ImageVertex{shape: shape[1], texture: [x2, y], color},
+            ImageVertex{shape: shape[2], texture: [x, y2], color},
+            ImageVertex{shape: shape[3], texture: [x2, y2], color},
         ]
     }
 }
