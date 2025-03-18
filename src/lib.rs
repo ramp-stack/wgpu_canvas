@@ -9,6 +9,8 @@ use color::ColorRenderer;
 use image::{ImageRenderer, ImageAtlas};
 use text::{TextRenderer, FontAtlas};
 
+pub use shape::Color;
+
 #[derive(Debug, Clone, Copy)]
 pub struct Area {
     pub z_index: u16,//;
@@ -92,7 +94,7 @@ impl Image {
 
 #[derive(Clone, Debug)]
 pub enum CanvasItem {
-    Shape(Shape, (u8, u8, u8, u8)),
+    Shape(Shape, Color),
     Image(Shape, Image),
     Text(Text),
 }

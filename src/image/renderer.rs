@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use crate::{Area, Shape};
 use super::{ImageAtlas, InnerImage, Image};
 
-use crate::shape::{ShapeVertex, RoundedRectangleVertex};
+use crate::shape::{Vertex, ImageVertex, ShapeVertex, RoundedRectangleVertex};
 
 pub struct ImageRenderer {
     bind_group_layout: BindGroupLayout,
@@ -52,16 +52,15 @@ impl ImageRenderer {
             mag_filter: wgpu::FilterMode::Linear,
             min_filter: wgpu::FilterMode::Linear,
             mipmap_filter: wgpu::FilterMode::Linear,
-            anisotropy_clamp: u16::MAX/2,
             ..Default::default()
         });
 
         let shader = device.create_shader_module(wgpu::include_wgsl!("ellipse.wgsl"));
-        let ellipse_renderer = GenericImageRenderer::new(device, texture_format, multisample, depth_stencil.clone(), &bind_group_layout, shader, ShapeVertex::layout());
+        let ellipse_renderer = GenericImageRenderer::new(device, texture_format, multisample, depth_stencil.clone(), &bind_group_layout, shader, ImageVertex::<ShapeVertex>::layout());
         let shader = device.create_shader_module(wgpu::include_wgsl!("rectangle.wgsl"));
-        let rectangle_renderer = GenericImageRenderer::new(device, texture_format, multisample, depth_stencil.clone(), &bind_group_layout, shader, ShapeVertex::layout());
+        let rectangle_renderer = GenericImageRenderer::new(device, texture_format, multisample, depth_stencil.clone(), &bind_group_layout, shader, ImageVertex::<ShapeVertex>::layout());
         let shader = device.create_shader_module(wgpu::include_wgsl!("rounded_rectangle.wgsl"));
-        let rounded_rectangle_renderer = GenericImageRenderer::new(device, texture_format, multisample, depth_stencil.clone(), &bind_group_layout, shader, RoundedRectangleVertex::layout());
+        let rounded_rectangle_renderer = GenericImageRenderer::new(device, texture_format, multisample, depth_stencil.clone(), &bind_group_layout, shader, ImageVertex::<RoundedRectangleVertex>::layout());
         ImageRenderer{
             bind_group_layout,
             sampler,
@@ -86,13 +85,13 @@ impl ImageRenderer {
 
         let (ellipses, rects, rounded_rects) = items.into_iter().fold(
             (vec![], vec![], vec![]),
-            |mut a, (shape, image, area)| {
-                let image = image_atlas.get(&image);
+            |mut a, (shape, key, area)| {
+                let image = image_atlas.get(&key);
                 match shape {
-                    Shape::Ellipse(stroke, size) => a.0.push((ShapeVertex::new(width, height, area, stroke, size), image)),
-                    Shape::Rectangle(stroke, size) => a.1.push((ShapeVertex::new(width, height, area, stroke, size), image)),
+                    Shape::Ellipse(stroke, size) => a.0.push((ImageVertex::new(ShapeVertex::new(width, height, area, stroke, size), &key, size), image)),
+                    Shape::Rectangle(stroke, size) => a.1.push((ImageVertex::new(ShapeVertex::new(width, height, area, stroke, size), &key, size), image)),
                     Shape::RoundedRectangle(stroke, size, corner_radius) =>
-                        a.2.push((RoundedRectangleVertex::new(width, height, area, stroke, size, corner_radius), image)),
+                        a.2.push((ImageVertex::new(RoundedRectangleVertex::new(width, height, area, stroke, size, corner_radius), &key, size), image)),
                 }
                 a
             }

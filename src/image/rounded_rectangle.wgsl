@@ -6,6 +6,7 @@ struct ShapeInput {
     @location(4) z: f32,
     @location(5) stroke: f32,
     @location(6) corner_radius: f32,
+    @location(7) texture: vec2<f32>
 }
 
 struct VertexOutput {
@@ -15,6 +16,7 @@ struct VertexOutput {
     @location(2) @interpolate(flat) bounds: vec4<f32>,
     @location(3) @interpolate(flat) stroke: f32,
     @location(4) @interpolate(flat) corner_radius: f32,
+    @location(5) texture: vec2<f32>
 };
 
 @vertex
@@ -30,6 +32,7 @@ fn vs_main(
     out.bounds = shape.bounds;
     out.stroke = shape.stroke;
     out.corner_radius = shape.corner_radius;
+    out.texture = shape.texture;
 
     return out;
 }
@@ -89,9 +92,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
        in.uv.y < in.bounds[1] || in.uv.y > in.bounds[3] {
         discard;
     }
-    let coords = vec2<u32>(u32(floor(in.uv.x)), u32(floor(in.uv.y)));
-    //let color = textureLoad(t_diffuse, coords, 0);
-    let color = textureSample(t_diffuse, s_diffuse, vec2<f32>(in.uv.x / in.size.x, in.uv.y / in.size.y));
+    let color = textureSample(t_diffuse, s_diffuse, in.texture);
     let alpha = alpha(in.uv, in.size, in.stroke, in.corner_radius);
     return vec4<f32>(color[0], color[1], color[2], color[3]*alpha);
 }

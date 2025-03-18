@@ -3,7 +3,7 @@ use wgpu_dyn_buffer::{DynamicBufferDescriptor, DynamicBuffer};
 
 use crate::{Area, Shape};
 
-use crate::shape::{ColorVertex, RoundedRectangleColorVertex, Color};
+use crate::shape::{Vertex, ShapeVertex, RoundedRectangleVertex, ColorVertex, Color};
 
 pub struct ColorRenderer {
     ellipse_renderer: GenericColorRenderer,
@@ -20,11 +20,11 @@ impl ColorRenderer {
         depth_stencil: Option<DepthStencilState>,
     ) -> Self {
         let shader = device.create_shader_module(wgpu::include_wgsl!("ellipse.wgsl"));
-        let ellipse_renderer = GenericColorRenderer::new(device, texture_format, multisample, depth_stencil.clone(), shader, ColorVertex::layout());
+        let ellipse_renderer = GenericColorRenderer::new(device, texture_format, multisample, depth_stencil.clone(), shader, ColorVertex::<ShapeVertex>::layout());
         let shader = device.create_shader_module(wgpu::include_wgsl!("rectangle.wgsl"));
-        let rectangle_renderer = GenericColorRenderer::new(device, texture_format, multisample, depth_stencil.clone(), shader, ColorVertex::layout());
+        let rectangle_renderer = GenericColorRenderer::new(device, texture_format, multisample, depth_stencil.clone(), shader, ColorVertex::<ShapeVertex>::layout());
         let shader = device.create_shader_module(wgpu::include_wgsl!("rounded_rectangle.wgsl"));
-        let rounded_rectangle_renderer = GenericColorRenderer::new(device, texture_format, multisample, depth_stencil.clone(), shader, RoundedRectangleColorVertex::layout());
+        let rounded_rectangle_renderer = GenericColorRenderer::new(device, texture_format, multisample, depth_stencil.clone(), shader, ColorVertex::<RoundedRectangleVertex>::layout());
         ColorRenderer{
             ellipse_renderer,
             rectangle_renderer,
@@ -46,10 +46,10 @@ impl ColorRenderer {
             (vec![], vec![], vec![]),
             |mut a, (shape, color, area)| {
                 match shape {
-                    Shape::Ellipse(stroke, size) => a.0.push(ColorVertex::new(width, height, area, stroke, size, color)),
-                    Shape::Rectangle(stroke, size) => a.1.push(ColorVertex::new(width, height, area, stroke, size, color)),
+                    Shape::Ellipse(stroke, size) => a.0.push(ColorVertex::new(ShapeVertex::new(width, height, area, stroke, size), color)),
+                    Shape::Rectangle(stroke, size) => a.1.push(ColorVertex::new(ShapeVertex::new(width, height, area, stroke, size), color)),
                     Shape::RoundedRectangle(stroke, size, corner_radius) =>
-                        a.2.push(RoundedRectangleColorVertex::new(width, height, area, stroke, size, corner_radius, color)),
+                        a.2.push(ColorVertex::new(RoundedRectangleVertex::new(width, height, area, stroke, size, corner_radius), color)),
                 }
                 a
             }
