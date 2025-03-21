@@ -53,8 +53,8 @@ impl ShapeVertex {
 
         let x = w(area.offset.0 as f32);
         let y = h(area.offset.1 as f32);
-        let x2 = w((area.offset.0+size.0) as f32);
-        let y2 = h((area.offset.1+size.1) as f32);
+        let x2 = w(area.offset.0 as f32 + size.0 as f32);
+        let y2 = h(area.offset.1 as f32 + size.1 as f32);
 
         let stroke = stroke.min(size.0.min(size.1)) as f32;
 

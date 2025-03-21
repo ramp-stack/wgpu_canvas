@@ -23,7 +23,7 @@ impl Text {
         let metrics = Metrics::new(self.size as f32, self.line_height as f32);
         let mut buffer = Buffer::new(font_system, metrics);
         buffer.set_wrap(font_system, Wrap::WordOrGlyph);
-        buffer.set_size(font_system, self.width.map(|w| w as f32), None);
+        buffer.set_size(font_system, self.width.map(|w| 1.0+w as f32), None);
         buffer.set_text(font_system, self.text, font_attrs, Shaping::Advanced);
         buffer
     }
@@ -126,8 +126,8 @@ impl TextRenderer {
         ).collect::<Vec<_>>();
 
         let text_areas = text_areas.into_iter().zip(buffers.iter()).map(|((a, t), b)| {
-            let left = a.bounds.0 as i32;
-            let top = a.bounds.1 as i32;
+            let left = a.bounds.0;
+            let top = a.bounds.1;
             glyphon::TextArea{
                 buffer: b,
                 left: a.offset.0 as f32,

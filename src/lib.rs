@@ -12,8 +12,8 @@ use text::{TextRenderer, FontAtlas};
 #[derive(Debug, Clone, Copy)]
 pub struct Area {
     pub z_index: u16,
-    pub offset: (u32, u32),
-    pub bounds: (u32, u32, u32, u32)
+    pub offset: (i32, i32),
+    pub bounds: (i32, i32, u32, u32)
 }
 
 #[derive(Clone, Copy, Debug)]
