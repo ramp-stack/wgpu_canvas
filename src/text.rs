@@ -9,7 +9,7 @@ use super::{Area, Color};
 
 #[derive(Clone, Debug)]
 pub struct Text {
-    pub text: &'static str,
+    pub text: String,
     pub color: Color,
     pub width: Option<u32>,
     pub size: u32,
@@ -24,7 +24,7 @@ impl Text {
         let mut buffer = Buffer::new(font_system, metrics);
         buffer.set_wrap(font_system, Wrap::WordOrGlyph);
         buffer.set_size(font_system, self.width.map(|w| 1.0+w as f32), None);
-        buffer.set_text(font_system, self.text, font_attrs, Shaping::Advanced);
+        buffer.set_text(font_system, &self.text, font_attrs, Shaping::Advanced);
         buffer
     }
 }

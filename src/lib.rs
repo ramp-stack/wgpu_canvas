@@ -28,7 +28,7 @@ impl Color {
 
 #[derive(Clone, Debug)]
 pub struct Text {
-    pub text: &'static str,
+    pub text: String,
     pub color: Color,
     pub width: Option<u32>,
     pub size: u32,
@@ -37,17 +37,6 @@ pub struct Text {
 }
 
 impl Text {
-    pub fn new(
-        text: &'static str,
-        color: Color,
-        width: Option<u32>,
-        size: u32,
-        line_height: u32,
-        font: Font,
-    ) -> Self {
-        Text{text, color, width, size, line_height, font}
-    }
-
     pub fn size(&self, atlas: &mut CanvasAtlas) -> (u32, u32) {
         atlas.font.messure_text(&self.clone().into_inner())
     }
