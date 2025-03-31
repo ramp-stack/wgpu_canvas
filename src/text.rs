@@ -66,10 +66,8 @@ impl FontAtlas {
     }
 
     fn trim(&mut self) {
-        self.fonts = Some(self.fonts.take().unwrap().into_iter().filter_map(|(k, v)| match Arc::try_unwrap(v) {
-            Err(av) => Some((k, av)),
-            Ok(v) => {self.font_system.db_mut().remove_face(v.0); None}
-        }).collect());
+        let to_remove = self.fonts.as_ref().unwrap().iter().filter_map(|(k, v)| (Arc::strong_count(&v) > 1).then(|| k.clone())).collect::<Vec<_>>();
+        to_remove.into_iter().for_each(|k| {self.fonts.as_mut().unwrap().remove(&k);});
     }
 }
 

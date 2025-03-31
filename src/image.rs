@@ -46,6 +46,7 @@ impl ImageAtlas {
         sampler: &Sampler
     ) {
         self.0 = Some(self.0.take().unwrap().into_iter().filter_map(|(image, v)|
+            //TODO: use match Arc::strong_count instead of try_unwrap, And .is_some instead of unwrap_or_else
             Arc::try_unwrap(image.0).err().map(|k| {
                 let inner_image = v.1.unwrap_or_else(|| {
                     let size = Extent3d {
