@@ -24,7 +24,7 @@ impl Text {
         let mut buffer = Buffer::new(font_system, metrics);
         buffer.set_wrap(font_system, Wrap::WordOrGlyph);
         buffer.set_size(font_system, self.width.map(|w| 1.0+w as f32), None);
-        buffer.set_text(font_system, &self.text, font_attrs, Shaping::Advanced);
+        buffer.set_text(font_system, &self.text, font_attrs, Shaping::Basic);
         buffer
     }
 }
