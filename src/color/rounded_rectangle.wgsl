@@ -87,7 +87,6 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
        in.uv.y < in.bounds[1] || in.uv.y > in.bounds[3] {
         discard;
     }
-    let coords = vec2<u32>(u32(floor(in.uv.x)), u32(floor(in.uv.y)));
     let alpha = alpha(in.uv, in.size, in.stroke, in.corner_radius);
     return vec4<f32>(in.color[0], in.color[1], in.color[2], in.color[3]*alpha);
 }

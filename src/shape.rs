@@ -47,7 +47,7 @@ impl Vertex for ShapeVertex {
 }
 
 impl ShapeVertex {
-    pub fn new(width: u32, height: u32, area: Area, stroke: u32, size: (u32, u32)) -> [ShapeVertex; 4] {
+    pub fn new(width: f32, height: f32, area: Area, stroke: f32, size: (f32, f32)) -> [ShapeVertex; 4] {
         let w = |x: f32| ((x / width as f32) * 2.0) - 1.0;
         let h = |y: f32| 1.0 - ((y / height as f32) * 2.0);
 
@@ -91,7 +91,7 @@ impl Vertex for RoundedRectangleVertex {
 }
 
 impl RoundedRectangleVertex {
-    pub fn new(width: u32, height: u32, area: Area, stroke: u32, size: (u32, u32), corner_radius: u32) -> [RoundedRectangleVertex; 4] {
+    pub fn new(width: f32, height: f32, area: Area, stroke: f32, size: (f32, f32), corner_radius: f32) -> [RoundedRectangleVertex; 4] {
         ShapeVertex::new(width, height, area, stroke, size).into_iter().map(|shape|
             RoundedRectangleVertex{shape, corner_radius: corner_radius as f32}
         ).collect::<Vec<_>>().try_into().unwrap()
@@ -135,7 +135,7 @@ impl<V: Vertex> Vertex for ImageVertex<V> {
 }
 
 impl<V: Vertex> ImageVertex<V> {
-    pub fn new(shape: [V; 4], image: &Image, size: (u32, u32), color: Option<Color>) -> [ImageVertex<V>; 4] {
+    pub fn new(shape: [V; 4], image: &Image, size: (f32, f32), color: Option<Color>) -> [ImageVertex<V>; 4] {
         let mut x = 0.0;
         let mut y = 0.0;
         let mut x2 = 1.0;

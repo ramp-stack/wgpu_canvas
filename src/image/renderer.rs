@@ -76,8 +76,8 @@ impl ImageRenderer {
         &mut self,
         device: &Device,
         queue: &Queue,
-        width: u32,
-        height: u32,
+        width: f32,
+        height: f32,
         image_atlas: &mut ImageAtlas,
         items: Vec<(Area, Shape, Image, Option<Color>)>,
     ) {

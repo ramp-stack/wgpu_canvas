@@ -11,9 +11,9 @@ use super::{Area, Color};
 pub struct Text {
     pub text: String,
     pub color: Color,
-    pub width: Option<u32>,
-    pub size: u32,
-    pub line_height: u32,
+    pub width: Option<f32>,
+    pub size: f32,
+    pub line_height: f32,
     pub font: Font,
 }
 
@@ -37,12 +37,12 @@ pub struct FontAtlas{
 }
 
 impl FontAtlas {
-    pub fn messure_text(&mut self, text: &Text) -> (u32, u32) {
+    pub fn measure_text(&mut self, text: &Text) -> (f32, f32) {
         text.to_buffer(&mut self.font_system, 0).lines.first().map(|line|
-            line.layout_opt().as_ref().unwrap().iter().fold((0, 0), |(w, h), span| {
-                (w.max(span.w as u32), h+span.line_height_opt.unwrap_or(span.max_ascent+span.max_descent) as u32)
+            line.layout_opt().as_ref().unwrap().iter().fold((0.0f32, 0.0f32), |(w, h), span| {
+                (w.max(span.w) as f32, h+span.line_height_opt.unwrap_or(span.max_ascent+span.max_descent) as f32)
             })
-        ).unwrap_or((0, 0))
+        ).unwrap_or((0.0, 0.0))
     }
 
     pub fn add(&mut self, raw_font: Vec<u8>) -> Font {
@@ -110,14 +110,14 @@ impl TextRenderer {
         &mut self,
         device: &Device,
         queue: &Queue,
-        width: u32,
-        height: u32,
+        width: f32,
+        height: f32,
         font_atlas: &mut FontAtlas,
         text_areas: Vec<(Area, Text)>
     ) {
         font_atlas.trim();
         self.text_atlas.trim();
-        self.viewport.update(queue, Resolution{width, height});
+        self.viewport.update(queue, Resolution{width: width.floor() as u32, height: height.floor() as u32});
 
         let buffers = text_areas.iter().map(|(a, t)|
             t.to_buffer(&mut font_atlas.font_system, a.z_index as usize)
