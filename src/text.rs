@@ -134,8 +134,8 @@ impl TextRenderer {
                 bounds: TextBounds {//Sisscor Rect
                     left: left as i32,
                     top: top as i32,
-                    right: left as i32 + a.bounds.2 as i32,
-                    bottom: top as i32 + a.bounds.3 as i32,
+                    right: (left + a.bounds.2).ceil() as i32,
+                    bottom: (top + a.bounds.3).ceil() as i32+2,
                 },
                 default_color: glyphon::Color::rgba(t.color.0, t.color.1, t.color.2, t.color.3),
                 custom_glyphs: &[]
