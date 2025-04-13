@@ -20,10 +20,10 @@ pub struct Text {
 impl Text {
     fn to_buffer(&self, font_system: &mut FontSystem, metadata: usize) -> Buffer {
         let font_attrs = self.font.1.metadata(metadata);
-        let metrics = Metrics::new(self.size as f32, self.line_height as f32);
+        let metrics = Metrics::new(self.size, self.line_height);
         let mut buffer = Buffer::new(font_system, metrics);
         buffer.set_wrap(font_system, Wrap::WordOrGlyph);
-        buffer.set_size(font_system, self.width.map(|w| 1.0+w as f32), None);
+        buffer.set_size(font_system, self.width.map(|w| 1.0+w), None);
         buffer.set_text(font_system, &self.text, font_attrs, Shaping::Basic);
         buffer
     }
@@ -40,7 +40,7 @@ impl FontAtlas {
     pub fn measure_text(&mut self, text: &Text) -> (f32, f32) {
         text.to_buffer(&mut self.font_system, 0).lines.first().map(|line|
             line.layout_opt().as_ref().unwrap().iter().fold((0.0f32, 0.0f32), |(w, h), span| {
-                (w.max(span.w) as f32, h+span.line_height_opt.unwrap_or(span.max_ascent+span.max_descent) as f32)
+                (w.max(span.w), h+span.line_height_opt.unwrap_or(span.max_ascent+span.max_descent))
             })
         ).unwrap_or((0.0, 0.0))
     }
@@ -66,7 +66,7 @@ impl FontAtlas {
     }
 
     fn trim(&mut self) {
-        let to_remove = self.fonts.as_ref().unwrap().iter().filter_map(|(k, v)| (Arc::strong_count(&v) > 1).then(|| k.clone())).collect::<Vec<_>>();
+        let to_remove = self.fonts.as_ref().unwrap().iter().filter(|&(_, v)| (Arc::strong_count(v) > 1)).map(|(k, _)| k.clone()).collect::<Vec<_>>();
         to_remove.into_iter().for_each(|k| {self.fonts.as_mut().unwrap().remove(&k);});
     }
 }
@@ -128,14 +128,14 @@ impl TextRenderer {
             let top = a.bounds.1;
             glyphon::TextArea{
                 buffer: b,
-                left: a.offset.0 as f32,
-                top: a.offset.1 as f32,
+                left: a.offset.0,
+                top: a.offset.1,
                 scale: 1.0,
                 bounds: TextBounds {//Sisscor Rect
-                    left,
-                    top,
-                    right: left + a.bounds.2 as i32,
-                    bottom: top + a.bounds.3 as i32,
+                    left: left as i32,
+                    top: top as i32,
+                    right: left as i32 + a.bounds.2 as i32,
+                    bottom: top as i32 + a.bounds.3 as i32,
                 },
                 default_color: glyphon::Color::rgba(t.color.0, t.color.1, t.color.2, t.color.3),
                 custom_glyphs: &[]
