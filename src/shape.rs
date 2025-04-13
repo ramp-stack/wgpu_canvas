@@ -47,23 +47,23 @@ impl Vertex for ShapeVertex {
 }
 
 impl ShapeVertex {
-    pub fn new(width: u32, height: u32, area: Area, stroke: u32, size: (u32, u32)) -> [ShapeVertex; 4] {
-        let w = |x: f32| ((x / width as f32) * 2.0) - 1.0;
-        let h = |y: f32| 1.0 - ((y / height as f32) * 2.0);
+    pub fn new(width: f32, height: f32, area: Area, stroke: f32, size: (f32, f32)) -> [ShapeVertex; 4] {
+        let w = |x: f32| ((x / width) * 2.0) - 1.0;
+        let h = |y: f32| 1.0 - ((y / height) * 2.0);
 
-        let x = w(area.offset.0 as f32);
-        let y = h(area.offset.1 as f32);
-        let x2 = w(area.offset.0 as f32 + size.0 as f32);
-        let y2 = h(area.offset.1 as f32 + size.1 as f32);
+        let x = w(area.offset.0);
+        let y = h(area.offset.1);
+        let x2 = w(area.offset.0 + size.0);
+        let y2 = h(area.offset.1 + size.1);
 
-        let stroke = stroke.min(size.0.min(size.1)) as f32;
+        let stroke = stroke.min(size.0.min(size.1));
 
-        let size = [size.0 as f32, size.1 as f32];
+        let size = [size.0, size.1];
 
-        let bx = area.bounds.0 as f32 - area.offset.0 as f32;
-        let by = area.bounds.1 as f32 - area.offset.1 as f32;
-        let bx2 = (area.bounds.0 as f32 - area.offset.0 as f32) + area.bounds.2 as f32;
-        let by2 = (area.bounds.1 as f32 - area.offset.1 as f32) + area.bounds.3 as f32;
+        let bx = area.bounds.0 - area.offset.0;
+        let by = area.bounds.1 - area.offset.1;
+        let bx2 = (area.bounds.0 - area.offset.0) + area.bounds.2;
+        let by2 = (area.bounds.1 - area.offset.1) + area.bounds.3;
         let bounds = [bx, by, bx2, by2];
 
         let z_index = area.z_index as f32 / u16::MAX as f32;
@@ -91,9 +91,9 @@ impl Vertex for RoundedRectangleVertex {
 }
 
 impl RoundedRectangleVertex {
-    pub fn new(width: u32, height: u32, area: Area, stroke: u32, size: (u32, u32), corner_radius: u32) -> [RoundedRectangleVertex; 4] {
+    pub fn new(width: f32, height: f32, area: Area, stroke: f32, size: (f32, f32), corner_radius: f32) -> [RoundedRectangleVertex; 4] {
         ShapeVertex::new(width, height, area, stroke, size).into_iter().map(|shape|
-            RoundedRectangleVertex{shape, corner_radius: corner_radius as f32}
+            RoundedRectangleVertex{shape, corner_radius}
         ).collect::<Vec<_>>().try_into().unwrap()
     }
 }
@@ -135,7 +135,7 @@ impl<V: Vertex> Vertex for ImageVertex<V> {
 }
 
 impl<V: Vertex> ImageVertex<V> {
-    pub fn new(shape: [V; 4], image: &Image, size: (u32, u32), color: Option<Color>) -> [ImageVertex<V>; 4] {
+    pub fn new(shape: [V; 4], image: &Image, size: (f32, f32), color: Option<Color>) -> [ImageVertex<V>; 4] {
         let mut x = 0.0;
         let mut y = 0.0;
         let mut x2 = 1.0;
@@ -143,8 +143,8 @@ impl<V: Vertex> ImageVertex<V> {
 
         let wi = image.size().0 as f32;
         let hi = image.size().1 as f32;
-        let ws = size.0 as f32;
-        let hs = size.1 as f32;
+        let ws = size.0;
+        let hs = size.1;
 
         let wr = ws / wi;
         let hr = hs / hi;

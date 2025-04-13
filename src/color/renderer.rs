@@ -38,8 +38,8 @@ impl ColorRenderer {
         &mut self,
         device: &Device,
         queue: &Queue,
-        width: u32,
-        height: u32,
+        width: f32,
+        height: f32,
         items: Vec<(Area, Shape, Color)>,
     ) {
         let (ellipses, rects, rounded_rects) = items.into_iter().fold(

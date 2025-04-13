@@ -12,8 +12,8 @@ use text::{TextRenderer, FontAtlas};
 #[derive(Debug, Clone, Copy)]
 pub struct Area {
     pub z_index: u16,
-    pub offset: (i32, i32),
-    pub bounds: (i32, i32, u32, u32)
+    pub offset: (f32, f32),
+    pub bounds: (f32, f32, f32, f32)
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -30,15 +30,15 @@ impl Color {
 pub struct Text {
     pub text: String,
     pub color: Color,
-    pub width: Option<u32>,
-    pub size: u32,
-    pub line_height: u32,
+    pub width: Option<f32>,
+    pub size: f32,
+    pub line_height: f32,
     pub font: Font,
 }
 
 impl Text {
-    pub fn size(&self, atlas: &mut CanvasAtlas) -> (u32, u32) {
-        atlas.font.messure_text(&self.clone().into_inner())
+    pub fn size(&self, atlas: &mut CanvasAtlas) -> (f32, f32) {
+        atlas.font.measure_text(&self.clone().into_inner())
     }
 
     fn into_inner(self) -> text::Text {
@@ -48,13 +48,13 @@ impl Text {
 
 #[derive(Clone, Debug, Copy)]
 pub enum Shape {
-    Ellipse(u32, (u32, u32)),
-    Rectangle(u32, (u32, u32)),
-    RoundedRectangle(u32, (u32, u32), u32),
+    Ellipse(f32, (f32, f32)),
+    Rectangle(f32, (f32, f32)),
+    RoundedRectangle(f32, (f32, f32), f32),
 }
 
 impl Shape {
-    pub fn size(&self) -> (u32, u32) {
+    pub fn size(&self) -> (f32, f32) {
         match self {
             Shape::Ellipse(_, size) => *size,
             Shape::Rectangle(_, size) => *size,
@@ -97,7 +97,7 @@ pub enum CanvasItem {
 }
 
 impl CanvasItem {
-    pub fn size(&self, atlas: &mut CanvasAtlas) -> (u32, u32) {
+    pub fn size(&self, atlas: &mut CanvasAtlas) -> (f32, f32) {
         match self {
             CanvasItem::Shape(shape, _) => shape.size(),
             CanvasItem::Image(shape, _, _) => shape.size(),
@@ -141,8 +141,8 @@ impl CanvasRenderer {
         &mut self,
         device: &Device,
         queue: &Queue,
-        width: u32,
-        height: u32,
+        width: f32,
+        height: f32,
         atlas: &mut CanvasAtlas,
         items: Vec<(Area, CanvasItem)>,
     ) {

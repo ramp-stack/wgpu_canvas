@@ -60,6 +60,5 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 
     var alpha = (1.0-smoothstep(1.0, 1.0+p, d)) * stroke;
 
-    let coords = vec2<u32>(u32(floor(in.uv.x)), u32(floor(in.uv.y)));
     return vec4<f32>(in.color[0], in.color[1], in.color[2], in.color[3]*alpha);
 }
