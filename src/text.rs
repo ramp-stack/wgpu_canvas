@@ -1,6 +1,7 @@
 use glyphon::{Resolution, SwashCache, FontSystem, TextBounds, TextAtlas, Viewport, Metrics, Shaping, Buffer, Family, Cache, Attrs, Wrap};
 use wgpu::{DepthStencilState, MultisampleState, TextureFormat, RenderPass, Device, Queue};
 use glyphon::fontdb::{Database, Source, ID};
+use glyphon::cosmic_text::LineEnding;
 
 use std::sync::Arc;
 use std::collections::HashMap;
@@ -38,11 +39,15 @@ pub struct FontAtlas{
 
 impl FontAtlas {
     pub fn measure_text(&mut self, text: &Text) -> (f32, f32) {
-        text.to_buffer(&mut self.font_system, 0).lines.first().map(|line|
-            line.layout_opt().as_ref().unwrap().iter().fold((0.0f32, 0.0f32), |(w, h), span| {
+        let buffer = text.to_buffer(&mut self.font_system, 0);
+        let newline = buffer.lines.last().and_then(|line| (!text.text.is_empty() && line.ending() != LineEnding::None).then_some(text.line_height)).unwrap_or_default();
+        let (w, h) = buffer.lines.into_iter().fold((0.0f32, 0.0f32), |(mw, mh), line| {
+            let (w, h) = line.layout_opt().as_ref().unwrap().iter().fold((0.0f32, 0.0f32), |(w, h), span|
                 (w.max(span.w), h+span.line_height_opt.unwrap_or(span.max_ascent+span.max_descent))
-            })
-        ).unwrap_or((0.0, 0.0))
+            );
+            (mw.max(w), mh+h.max(text.line_height))
+        });
+        (w, h+newline)
     }
 
     pub fn add(&mut self, raw_font: Vec<u8>) -> Font {
@@ -117,7 +122,7 @@ impl TextRenderer {
     ) {
         font_atlas.trim();
         self.text_atlas.trim();
-        self.viewport.update(queue, Resolution{width: width.floor() as u32, height: height.floor() as u32});
+        self.viewport.update(queue, Resolution{width: width as u32, height: height as u32});
 
         let buffers = text_areas.iter().map(|(a, t)|
             t.to_buffer(&mut font_atlas.font_system, a.z_index as usize)
