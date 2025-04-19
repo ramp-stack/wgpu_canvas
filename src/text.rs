@@ -1,12 +1,12 @@
 use glyphon::{Resolution, SwashCache, FontSystem, TextBounds, TextAtlas, Viewport, Metrics, Shaping, Buffer, Family, Cache, Attrs, Wrap};
 use wgpu::{DepthStencilState, MultisampleState, TextureFormat, RenderPass, Device, Queue};
 use glyphon::fontdb::{Database, Source, ID};
-use glyphon::cosmic_text::LineEnding;
+use glyphon::cosmic_text::{LineEnding};
 
 use std::sync::Arc;
 use std::collections::HashMap;
 
-use super::{Area, Color};
+use super::{Area, Color, Align};
 
 #[derive(Clone, Debug)]
 pub struct Text {
@@ -16,6 +16,7 @@ pub struct Text {
     pub size: f32,
     pub line_height: f32,
     pub font: Font,
+    pub align: Align,
 }
 
 impl Text {
@@ -26,6 +27,7 @@ impl Text {
         buffer.set_wrap(font_system, Wrap::WordOrGlyph);
         buffer.set_size(font_system, self.width.map(|w| 1.0+w), None);
         buffer.set_text(font_system, &self.text, font_attrs, Shaping::Basic);
+        // buffer.align(self.align);
         buffer
     }
 }

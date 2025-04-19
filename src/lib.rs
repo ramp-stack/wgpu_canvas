@@ -1,4 +1,5 @@
 use wgpu::{DepthStencilState, MultisampleState, TextureFormat, RenderPass, Device, Queue};
+pub use glyphon::cosmic_text::Align;
 
 mod shape;
 mod color;
@@ -34,6 +35,7 @@ pub struct Text {
     pub size: f32,
     pub line_height: f32,
     pub font: Font,
+    pub align: Align,
 }
 
 impl Text {
@@ -42,7 +44,7 @@ impl Text {
     }
 
     fn into_inner(self) -> text::Text {
-        text::Text{text: self.text, color: self.color, width: self.width, size: self.size, line_height: self.line_height, font: self.font.into_inner()}
+        text::Text{text: self.text, color: self.color, width: self.width, size: self.size, line_height: self.line_height, font: self.font.into_inner(), align: self.align}
     }
 }
 
