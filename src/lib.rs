@@ -1,4 +1,5 @@
 use wgpu::{DepthStencilState, MultisampleState, TextureFormat, RenderPass, Device, Queue};
+pub use glyphon::cosmic_text::Align;
 
 mod shape;
 mod color;
