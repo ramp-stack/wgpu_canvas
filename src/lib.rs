@@ -6,43 +6,19 @@ mod image;
 mod text;
 
 use color::ColorRenderer;
-use image::{ImageRenderer, ImageAtlas};
-use text::{TextRenderer, FontAtlas};
+use image::ImageRenderer;
+use text::TextRenderer;
+
+pub use color::Color;
+pub use image::{ImageAtlas, Image};
+pub use text::{FontAtlas, Font, Text};
 
 #[derive(Debug, Clone, Copy)]
-pub struct Area {
-    pub z_index: u16,
-    pub offset: (f32, f32),
-    pub bounds: (f32, f32, f32, f32)
-}
+pub struct Area(pub (f32, f32), pub Option<(f32, f32, f32, f32)>);
 
-#[derive(Clone, Copy, Debug)]
-pub struct Color(pub u8, pub u8, pub u8, pub u8);
-
-impl Color {
-    pub(crate) fn color(&self) -> [f32; 4] {
-        let c = |f: u8| (((f as f32 / u8::MAX as f32) + 0.055) / 1.055).powf(2.4);
-        [c(self.0), c(self.1), c(self.2), c(self.3)]
-    }
-}
-
-#[derive(Clone, Debug)]
-pub struct Text {
-    pub text: String,
-    pub color: Color,
-    pub width: Option<f32>,
-    pub size: f32,
-    pub line_height: f32,
-    pub font: Font,
-}
-
-impl Text {
-    pub fn size(&self, atlas: &mut CanvasAtlas) -> (f32, f32) {
-        atlas.font.measure_text(&self.clone().into_inner())
-    }
-
-    fn into_inner(self) -> text::Text {
-        text::Text{text: self.text, color: self.color, width: self.width, size: self.size, line_height: self.line_height, font: self.font.into_inner()}
+impl Area {
+    pub(crate) fn bounds(&self, width: f32, height: f32) -> (f32, f32, f32, f32) {
+        self.1.unwrap_or((0.0, 0.0, width, height))
     }
 }
 
@@ -64,52 +40,10 @@ impl Shape {
 }
 
 #[derive(Clone, Debug)]
-pub struct Font(text::Font);
-
-impl Font {
-    pub fn new(atlas: &mut CanvasAtlas, bytes: Vec<u8>) -> Self {
-        Font(atlas.font.add(bytes))
-    }
-
-    fn into_inner(self) -> text::Font {
-        self.0
-    }
-}
-
-#[derive(Clone, Debug)]
-pub struct Image(image::Image);
-
-impl Image {
-    pub fn new(atlas: &mut CanvasAtlas, image: image::RgbaImage) -> Self {
-        Image(atlas.image.add(image))
-    }
-
-    fn into_inner(self) -> image::Image {
-        self.0
-    }
-}
-
-#[derive(Clone, Debug)]
 pub enum CanvasItem {
     Shape(Shape, Color),
     Image(Shape, Image, Option<Color>),
     Text(Text),
-}
-
-impl CanvasItem {
-    pub fn size(&self, atlas: &mut CanvasAtlas) -> (f32, f32) {
-        match self {
-            CanvasItem::Shape(shape, _) => shape.size(),
-            CanvasItem::Image(shape, _, _) => shape.size(),
-            CanvasItem::Text(text) => text.size(atlas)
-        }
-    }
-}
-
-#[derive(Default)]
-pub struct CanvasAtlas {
-    image: ImageAtlas,
-    font: FontAtlas,
 }
 
 pub struct CanvasRenderer {
@@ -136,6 +70,9 @@ impl CanvasRenderer {
 
     /// Prepare for rendering this frame; create all resources that will be
     /// used during the next render that do not already exist.
+    ///
+    /// Items are given a z_index based on the order in which they are presented. First item in the
+    /// vector will be printed in the back of the stack(z = u16::MAX-1)
     #[allow(clippy::too_many_arguments)]
     pub fn prepare(
         &mut self,
@@ -143,22 +80,23 @@ impl CanvasRenderer {
         queue: &Queue,
         width: f32,
         height: f32,
-        atlas: &mut CanvasAtlas,
+        image_atlas: &mut ImageAtlas,
+        font_atlas: &mut FontAtlas,
         items: Vec<(Area, CanvasItem)>,
     ) {
-        let (colors, images, texts) = items.into_iter().fold((vec![], vec![], vec![]), |mut a, (mut area, item)| {
-            area.z_index = u16::MAX-area.z_index;
+        let (colors, images, texts) = items.into_iter().enumerate().fold((vec![], vec![], vec![]), |mut a, (i, (area, item))| {
+            let z = i as u16;
             match item {
-                CanvasItem::Shape(shape, color) => a.0.push((area, shape, color)),
-                CanvasItem::Image(shape, image, color) => a.1.push((area, shape, image.into_inner(), color)),
-                CanvasItem::Text(text) => a.2.push((area, text.into_inner())),
+                CanvasItem::Shape(shape, color) => a.0.push((z, area, shape, color)),
+                CanvasItem::Image(shape, image, color) => a.1.push((z, area, shape, image, color)),
+                CanvasItem::Text(text) => a.2.push((z, area, text)),
             }
             a
         });
 
         self.color_renderer.prepare(device, queue, width, height, colors);
-        self.image_renderer.prepare(device, queue, width, height, &mut atlas.image, images);
-        self.text_renderer.prepare(device, queue, width, height, &mut atlas.font, texts);
+        self.image_renderer.prepare(device, queue, width, height, image_atlas, images);
+        self.text_renderer.prepare(device, queue, width, height, font_atlas, texts);
     }
 
     /// Render using caller provided render pass.

@@ -1,7 +1,7 @@
 use glyphon::{Resolution, SwashCache, FontSystem, TextBounds, TextAtlas, Viewport, Metrics, Shaping, Buffer, Family, Cache, Attrs, Wrap};
 use wgpu::{DepthStencilState, MultisampleState, TextureFormat, RenderPass, Device, Queue};
 use glyphon::fontdb::{Database, Source, ID};
-use glyphon::cosmic_text::LineEnding;
+//use glyphon::cosmic_text::LineEnding;
 
 use std::sync::Arc;
 use std::collections::HashMap;
@@ -9,24 +9,44 @@ use std::collections::HashMap;
 use super::{Area, Color};
 
 #[derive(Clone, Debug)]
-pub struct Text {
-    pub text: String,
-    pub color: Color,
-    pub width: Option<f32>,
-    pub size: f32,
-    pub line_height: f32,
-    pub font: Font,
-}
+pub struct Text(Buffer, Color);
 
 impl Text {
-    fn to_buffer(&self, font_system: &mut FontSystem, metadata: usize) -> Buffer {
-        let font_attrs = self.font.1.metadata(metadata);
-        let metrics = Metrics::new(self.size, self.line_height);
-        let mut buffer = Buffer::new(font_system, metrics);
-        buffer.set_wrap(font_system, Wrap::WordOrGlyph);
-        buffer.set_size(font_system, self.width.map(|w| 1.0+w), None);
-        buffer.set_text(font_system, &self.text, font_attrs, Shaping::Basic);
-        buffer
+    pub fn new(
+        font_system: &mut impl AsMut<FontSystem>,
+        text: &str, color: Color, font: Font,
+        size: f32, line_height: f32, width: Option<f32>
+    ) -> Self {
+        let font_attrs = font.1.metadata(0);
+        let metrics = Metrics::new(size, line_height);
+        let mut buffer = Buffer::new(font_system.as_mut(), metrics);
+        buffer.set_wrap(font_system.as_mut(), Wrap::WordOrGlyph);
+        buffer.set_size(font_system.as_mut(), width.map(|w| 1.0+w), None);
+        buffer.set_text(font_system.as_mut(), text, font_attrs, Shaping::Basic);
+        Text(buffer, color)
+    }
+
+    pub fn get_size(&self) -> (f32, f32) {
+        //TODO: no access to text or line_height
+        //let newline = self.0.lines.last().and_then(|line| (!text.text.is_empty() && line.ending() != LineEnding::None).then_some(text.line_height)).unwrap_or_default();
+        let newline = 0.0;
+        let line_height = 0.0;
+        let (w, h) = self.0.lines.iter().fold((0.0f32, 0.0f32), |(mw, mh), line| {
+            let (w, h) = line.layout_opt().as_ref().unwrap().iter().fold((0.0f32, 0.0f32), |(w, h), span|
+                (w.max(span.w), h+span.line_height_opt.unwrap_or(span.max_ascent+span.max_descent))
+            );
+            (mw.max(w), mh+h.max(line_height))
+        });
+        (w, h+newline)
+    }
+
+    pub fn get_color(&self) -> &Color {&self.1}
+    pub fn set_color(&mut self, color: Color) {self.1 = color}
+
+    fn set_z_index(&mut self, z_index: usize) {
+        for line in &mut self.0.lines {
+            line.set_metadata(z_index);
+        }
     }
 }
 
@@ -37,21 +57,13 @@ pub struct FontAtlas{
     font_system: FontSystem
 }
 
-impl FontAtlas {
-    pub fn measure_text(&mut self, text: &Text) -> (f32, f32) {
-        let buffer = text.to_buffer(&mut self.font_system, 0);
-        let newline = buffer.lines.last().and_then(|line| (!text.text.is_empty() && line.ending() != LineEnding::None).then_some(text.line_height)).unwrap_or_default();
-        let (w, h) = buffer.lines.into_iter().fold((0.0f32, 0.0f32), |(mw, mh), line| {
-            let (w, h) = line.layout_opt().as_ref().unwrap().iter().fold((0.0f32, 0.0f32), |(w, h), span|
-                (w.max(span.w), h+span.line_height_opt.unwrap_or(span.max_ascent+span.max_descent))
-            );
-            (mw.max(w), mh+h.max(text.line_height))
-        });
-        (w, h+newline)
-    }
+impl AsMut<FontSystem> for FontAtlas {
+    fn as_mut(&mut self) -> &mut FontSystem {&mut self.font_system}
+}
 
-    pub fn add(&mut self, raw_font: Vec<u8>) -> Font {
-        let raw_font = Arc::new(raw_font);
+impl FontAtlas {
+    pub fn add(&mut self, raw_font: &[u8]) -> Font {
+        let raw_font = Arc::new(raw_font.to_vec());
         match self.fonts.as_mut().unwrap().get(&raw_font) {
             Some(font) => font.clone(),
             None => {
@@ -118,31 +130,27 @@ impl TextRenderer {
         width: f32,
         height: f32,
         font_atlas: &mut FontAtlas,
-        text_areas: Vec<(Area, Text)>
+        mut text_areas: Vec<(u16, Area, Text)>
     ) {
         font_atlas.trim();
         self.text_atlas.trim();
         self.viewport.update(queue, Resolution{width: width as u32, height: height as u32});
 
-        let buffers = text_areas.iter().map(|(a, t)|
-            t.to_buffer(&mut font_atlas.font_system, a.z_index as usize)
-        ).collect::<Vec<_>>();
-
-        let text_areas = text_areas.into_iter().zip(buffers.iter()).map(|((a, t), b)| {
-            let left = a.bounds.0;
-            let top = a.bounds.1;
+        let text_areas = text_areas.iter_mut().map(|(z, a, t)| {
+            t.set_z_index(*z as usize);
+            let bounds = a.bounds(width, height);
             glyphon::TextArea{
-                buffer: b,
-                left: a.offset.0,
-                top: a.offset.1,
+                buffer: &t.0,
+                left: a.0.0,
+                top: a.0.1,
                 scale: 1.0,
                 bounds: TextBounds {//Sisscor Rect
-                    left: left as i32,
-                    top: top as i32,
-                    right: (left + a.bounds.2).ceil() as i32,
-                    bottom: (top + a.bounds.3).ceil() as i32+2,
+                    left: bounds.0 as i32,
+                    top: bounds.1 as i32,
+                    right: (bounds.0 + bounds.2).ceil() as i32,
+                    bottom: (bounds.1 + bounds.3).ceil() as i32+2,//TODO: Find out why this is +2
                 },
-                default_color: glyphon::Color::rgba(t.color.0, t.color.1, t.color.2, t.color.3),
+                default_color: glyphon::Color::rgba(t.1.0, t.1.1, t.1.2, t.1.3),
                 custom_glyphs: &[]
             }
         });

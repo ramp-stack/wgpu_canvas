@@ -38,7 +38,7 @@ impl ImageAtlas {
         }
     }
 
-    pub fn trim_and_bind(
+    pub(crate) fn trim_and_bind(
         &mut self,
         queue: &Queue,
         device: &Device,
@@ -108,7 +108,7 @@ impl ImageAtlas {
         ).collect());
     }
 
-    pub fn get(&self, key: &Image) -> InnerImage {
+    pub(crate) fn get(&self, key: &Image) -> InnerImage {
         self.0.as_ref().unwrap().get(key).as_ref().unwrap().1.clone().unwrap()
     }
 }

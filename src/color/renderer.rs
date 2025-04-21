@@ -1,9 +1,9 @@
 use wgpu::{PipelineCompilationOptions, RenderPipelineDescriptor, PipelineLayoutDescriptor, DepthStencilState, MultisampleState, RenderPipeline, PrimitiveState, FragmentState, TextureFormat, BufferUsages, IndexFormat, VertexState, RenderPass, Device, Queue, VertexBufferLayout, ShaderModule};
 use wgpu_dyn_buffer::{DynamicBufferDescriptor, DynamicBuffer};
 
-use crate::{Area, Color, Shape};
-
 use crate::shape::{Vertex, ShapeVertex, RoundedRectangleVertex, ColorVertex};
+use crate::{Area, Shape};
+use super::Color;
 
 pub struct ColorRenderer {
     ellipse_renderer: GenericColorRenderer,
@@ -40,16 +40,17 @@ impl ColorRenderer {
         queue: &Queue,
         width: f32,
         height: f32,
-        items: Vec<(Area, Shape, Color)>,
+        items: Vec<(u16, Area, Shape, Color)>,
     ) {
+
         let (ellipses, rects, rounded_rects) = items.into_iter().fold(
             (vec![], vec![], vec![]),
-            |mut a, (area, shape, color)| {
+            |mut a, (z, area, shape, color)| {
                 match shape {
-                    Shape::Ellipse(stroke, size) => a.0.push(ColorVertex::new(ShapeVertex::new(width, height, area, stroke, size), color)),
-                    Shape::Rectangle(stroke, size) => a.1.push(ColorVertex::new(ShapeVertex::new(width, height, area, stroke, size), color)),
+                    Shape::Ellipse(stroke, size) => a.0.push(ColorVertex::new(ShapeVertex::new(width, height, z, area, stroke, size), color)),
+                    Shape::Rectangle(stroke, size) => a.1.push(ColorVertex::new(ShapeVertex::new(width, height, z, area, stroke, size), color)),
                     Shape::RoundedRectangle(stroke, size, corner_radius) =>
-                        a.2.push(ColorVertex::new(RoundedRectangleVertex::new(width, height, area, stroke, size, corner_radius), color)),
+                        a.2.push(ColorVertex::new(RoundedRectangleVertex::new(width, height, z, area, stroke, size, corner_radius), color)),
                 }
                 a
             }

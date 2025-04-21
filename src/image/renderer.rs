@@ -79,19 +79,19 @@ impl ImageRenderer {
         width: f32,
         height: f32,
         image_atlas: &mut ImageAtlas,
-        items: Vec<(Area, Shape, Image, Option<Color>)>,
+        items: Vec<(u16, Area, Shape, Image, Option<Color>)>,
     ) {
         image_atlas.trim_and_bind(queue, device, &self.bind_group_layout, &self.sampler);
 
         let (ellipses, rects, rounded_rects) = items.into_iter().fold(
             (vec![], vec![], vec![]),
-            |mut a, (area, shape, key, color)| {
+            |mut a, (z, area, shape, key, color)| {
                 let image = image_atlas.get(&key);
                 match shape {
-                    Shape::Ellipse(stroke, size) => a.0.push((ImageVertex::new(ShapeVertex::new(width, height, area, stroke, size), &key, size, color), image)),
-                    Shape::Rectangle(stroke, size) => a.1.push((ImageVertex::new(ShapeVertex::new(width, height, area, stroke, size), &key, size, color), image)),
+                    Shape::Ellipse(stroke, size) => a.0.push((ImageVertex::new(ShapeVertex::new(width, height, z, area, stroke, size), &key, size, color), image)),
+                    Shape::Rectangle(stroke, size) => a.1.push((ImageVertex::new(ShapeVertex::new(width, height, z, area, stroke, size), &key, size, color), image)),
                     Shape::RoundedRectangle(stroke, size, corner_radius) =>
-                        a.2.push((ImageVertex::new(RoundedRectangleVertex::new(width, height, area, stroke, size, corner_radius), &key, size, color), image)),
+                        a.2.push((ImageVertex::new(RoundedRectangleVertex::new(width, height, z, area, stroke, size, corner_radius), &key, size, color), image)),
                 }
                 a
             }

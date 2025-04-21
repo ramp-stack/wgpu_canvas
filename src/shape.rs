@@ -47,26 +47,27 @@ impl Vertex for ShapeVertex {
 }
 
 impl ShapeVertex {
-    pub fn new(width: f32, height: f32, area: Area, stroke: f32, size: (f32, f32)) -> [ShapeVertex; 4] {
+    pub fn new(width: f32, height: f32, z: u16, area: Area, stroke: f32, size: (f32, f32)) -> [ShapeVertex; 4] {
         let w = |x: f32| ((x / width) * 2.0) - 1.0;
         let h = |y: f32| 1.0 - ((y / height) * 2.0);
 
-        let x = w(area.offset.0);
-        let y = h(area.offset.1);
-        let x2 = w(area.offset.0 + size.0);
-        let y2 = h(area.offset.1 + size.1);
+        let x = w(area.0.0);
+        let y = h(area.0.1);
+        let x2 = w(area.0.0 + size.0);
+        let y2 = h(area.0.1 + size.1);
 
         let stroke = stroke.min(size.0.min(size.1));
 
         let size = [size.0, size.1];
 
-        let bx = area.bounds.0 - area.offset.0;
-        let by = area.bounds.1 - area.offset.1;
-        let bx2 = (area.bounds.0 - area.offset.0) + area.bounds.2;
-        let by2 = (area.bounds.1 - area.offset.1) + area.bounds.3;
+        let bounds = area.bounds(width, height);
+        let bx = bounds.0 - area.0.0;
+        let by = bounds.1 - area.0.1;
+        let bx2 = bx + bounds.2;
+        let by2 = by + bounds.3;
         let bounds = [bx, by, bx2, by2];
 
-        let z_index = area.z_index as f32 / u16::MAX as f32;
+        let z_index = z as f32 / u16::MAX as f32;
 
         [
             ShapeVertex{uv: [0.0, 0.0], position: [x, y], size, bounds, z_index, stroke},
@@ -91,8 +92,8 @@ impl Vertex for RoundedRectangleVertex {
 }
 
 impl RoundedRectangleVertex {
-    pub fn new(width: f32, height: f32, area: Area, stroke: f32, size: (f32, f32), corner_radius: f32) -> [RoundedRectangleVertex; 4] {
-        ShapeVertex::new(width, height, area, stroke, size).into_iter().map(|shape|
+    pub fn new(width: f32, height: f32, z: u16, area: Area, stroke: f32, size: (f32, f32), corner_radius: f32) -> [RoundedRectangleVertex; 4] {
+        ShapeVertex::new(width, height, z, area, stroke, size).into_iter().map(|shape|
             RoundedRectangleVertex{shape, corner_radius}
         ).collect::<Vec<_>>().try_into().unwrap()
     }
