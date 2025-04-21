@@ -1,7 +1,7 @@
 use glyphon::{Resolution, SwashCache, FontSystem, TextBounds, TextAtlas, Viewport, Metrics, Shaping, Buffer, Family, Cache, Attrs, Wrap};
 use wgpu::{DepthStencilState, MultisampleState, TextureFormat, RenderPass, Device, Queue};
 use glyphon::fontdb::{Database, Source, ID};
-//use glyphon::cosmic_text::LineEnding;
+use glyphon::cosmic_text::Align;
 
 use std::sync::Arc;
 use std::collections::HashMap;
@@ -14,7 +14,7 @@ pub struct Text(Buffer, Color);
 impl Text {
     pub fn new(
         font_system: &mut impl AsMut<FontSystem>,
-        text: &str, color: Color, font: Font,
+        text: &str, color: Color, font: Font, align: Align,
         size: f32, line_height: f32, width: Option<f32>
     ) -> Self {
         let font_attrs = font.1.metadata(0);
@@ -23,6 +23,7 @@ impl Text {
         buffer.set_wrap(font_system.as_mut(), Wrap::WordOrGlyph);
         buffer.set_size(font_system.as_mut(), width.map(|w| 1.0+w), None);
         buffer.set_text(font_system.as_mut(), text, font_attrs, Shaping::Basic);
+        buffer.lines.iter_mut().for_each(|bl| {bl.set_align(Some(align));});
         Text(buffer, color)
     }
 
