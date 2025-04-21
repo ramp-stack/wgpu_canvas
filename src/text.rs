@@ -9,7 +9,7 @@ use std::collections::HashMap;
 use super::{Area, Color};
 
 #[derive(Clone, Debug)]
-pub struct Text(Buffer, Color);
+pub struct Text(Buffer, Color, Font);
 
 impl Text {
     pub fn new(
@@ -17,13 +17,16 @@ impl Text {
         text: &str, color: Color, font: Font,
         size: f32, line_height: f32, width: Option<f32>
     ) -> Self {
-        let font_attrs = font.1.metadata(0);
         let metrics = Metrics::new(size, line_height);
         let mut buffer = Buffer::new(font_system.as_mut(), metrics);
         buffer.set_wrap(font_system.as_mut(), Wrap::WordOrGlyph);
         buffer.set_size(font_system.as_mut(), width.map(|w| 1.0+w), None);
-        buffer.set_text(font_system.as_mut(), text, font_attrs, Shaping::Basic);
-        Text(buffer, color)
+        buffer.set_text(font_system.as_mut(), text, font.1, Shaping::Basic);
+        Text(buffer, color, font)
+    }
+
+    pub fn set_text(&mut self, font_system: &mut impl AsMut<FontSystem>, text: &str) {
+        self.0.set_text(font_system.as_mut(), text, self.2.1, Shaping::Basic);
     }
 
     pub fn get_size(&self) -> (f32, f32) {
@@ -44,9 +47,7 @@ impl Text {
     pub fn set_color(&mut self, color: Color) {self.1 = color}
 
     fn set_z_index(&mut self, z_index: usize) {
-        for line in &mut self.0.lines {
-            line.set_metadata(z_index);
-        }
+        self.0.lines.iter_mut().for_each(|l| l.set_metadata(z_index));
     }
 }
 
