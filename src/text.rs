@@ -2,6 +2,7 @@ use glyphon::{Resolution, SwashCache, FontSystem, TextBounds, TextAtlas, Viewpor
 use wgpu::{DepthStencilState, MultisampleState, TextureFormat, RenderPass, Device, Queue};
 use glyphon::fontdb::{Database, Source, ID};
 use glyphon::cosmic_text::Align;
+use glyphon::cosmic_text::LineEnding;
 
 use std::sync::Arc;
 use std::collections::HashMap;
@@ -9,7 +10,16 @@ use std::collections::HashMap;
 use super::{Area, Color};
 
 #[derive(Clone, Debug)]
-pub struct Text(Buffer, Color, Font);
+pub struct Text{
+    buffer: Buffer,
+    pub text: String,
+    pub color: Color,
+    pub font: Font,
+    pub size: f32,
+    pub line_height: f32,
+    pub width: Option<f32>,
+    pub align: Align,
+}
 
 impl Text {
     pub fn new(
@@ -22,37 +32,29 @@ impl Text {
         buffer.set_wrap(font_system.as_mut(), Wrap::WordOrGlyph);
         buffer.set_size(font_system.as_mut(), width.map(|w| 1.0+w), None);
         buffer.set_text(font_system.as_mut(), text, font.1, Shaping::Basic);
-        buffer.lines.iter_mut().for_each(|bl| {bl.set_align(Some(align));});
-        Text(buffer, color, font)
+        buffer.lines.iter_mut().for_each(|l| {l.set_align(Some(align));});
+        Text{buffer, text: text.to_string(), color, font, align, size, line_height, width}
     }
 
-    pub fn get_text(&self) -> String {self.0.lines.iter().fold(String::new(), |a, l| a+"\n"+l.text())}
-
-    pub fn set_text(&mut self, font_system: &mut impl AsMut<FontSystem>, text: &str) {
-        self.0.set_text(font_system.as_mut(), text, self.2.1, Shaping::Basic);
-    }
-
-    pub fn get_max_width(&self) -> Option<f32> {self.0.size().0}
-
-    pub fn get_size(&self) -> (f32, f32) {
-        //TODO: no access to text or line_height
-        //let newline = self.0.lines.last().and_then(|line| (!text.text.is_empty() && line.ending() != LineEnding::None).then_some(text.line_height)).unwrap_or_default();
-        let newline = 0.0;
-        let line_height = 0.0;
-        let (w, h) = self.0.lines.iter().fold((0.0f32, 0.0f32), |(mw, mh), line| {
+    pub fn size(&self) -> (f32, f32) {
+        let newline = self.buffer.lines.last().and_then(|line| (!self.text.is_empty() && line.ending() != LineEnding::None).then_some(self.line_height)).unwrap_or_default();
+        let (w, h) = self.buffer.lines.iter().fold((0.0f32, 0.0f32), |(mw, mh), line| {
             let (w, h) = line.layout_opt().as_ref().unwrap().iter().fold((0.0f32, 0.0f32), |(w, h), span|
                 (w.max(span.w), h+span.line_height_opt.unwrap_or(span.max_ascent+span.max_descent))
             );
-            (mw.max(w), mh+h.max(line_height))
+            (mw.max(w), mh+h.max(self.line_height))
         });
         (w, h+newline)
     }
 
-    pub fn get_color(&self) -> &Color {&self.1}
-    pub fn set_color(&mut self, color: Color) {self.1 = color}
-
-    fn set_z_index(&mut self, z_index: usize) {
-        self.0.lines.iter_mut().for_each(|l| l.set_metadata(z_index));
+    fn update_buffer(&mut self, font_system: &mut impl AsMut<FontSystem>, z: usize) {
+        //TODO: check if text changed first
+        // pub fn get_text(&self) -> String {self.0.lines.iter().fold(String::new(), |a, l| a+"\n"+l.text())}
+        self.buffer.set_metrics(font_system.as_mut(), Metrics::new(self.size, self.line_height));
+        self.buffer.set_wrap(font_system.as_mut(), Wrap::WordOrGlyph);
+        self.buffer.set_size(font_system.as_mut(), self.width.map(|w| 1.0+w), None);
+        self.buffer.set_text(font_system.as_mut(), &self.text, self.font.1.metadata(z), Shaping::Basic);
+        self.buffer.lines.iter_mut().for_each(|l| {l.set_align(Some(self.align));});
     }
 }
 
@@ -142,11 +144,14 @@ impl TextRenderer {
         self.text_atlas.trim();
         self.viewport.update(queue, Resolution{width: width as u32, height: height as u32});
 
-        let text_areas = text_areas.iter_mut().map(|(z, a, t)| {
-            t.set_z_index(*z as usize);
+        text_areas.iter_mut().for_each(|(z, _, t)| {
+            t.update_buffer(font_atlas, *z as usize);
+        });
+        let text_areas = text_areas.iter_mut().map(|(_, a, t)| {
+            let default_color = glyphon::Color::rgba(t.color.0, t.color.1, t.color.2, t.color.3);
             let bounds = a.bounds(width, height);
             glyphon::TextArea{
-                buffer: &t.0,
+                buffer: &t.buffer,
                 left: a.0.0,
                 top: a.0.1,
                 scale: 1.0,
@@ -156,7 +161,7 @@ impl TextRenderer {
                     right: (bounds.0 + bounds.2).ceil() as i32,
                     bottom: (bounds.1 + bounds.3).ceil() as i32+2,//TODO: Find out why this is +2
                 },
-                default_color: glyphon::Color::rgba(t.1.0, t.1.1, t.1.2, t.1.3),
+                default_color,
                 custom_glyphs: &[]
             }
         });
