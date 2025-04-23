@@ -1,91 +1,91 @@
 use glyphon::{Resolution, SwashCache, FontSystem, TextBounds, TextAtlas, Viewport, Metrics, Shaping, Buffer, Family, Cache, Attrs, Wrap};
 use wgpu::{DepthStencilState, MultisampleState, TextureFormat, RenderPass, Device, Queue};
 use glyphon::fontdb::{Database, Source, ID};
-use glyphon::cosmic_text::Align;
-use glyphon::cosmic_text::LineEnding;
 
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::collections::HashMap;
 
 use super::{Area, Color};
 
-//  #[derive(Debug)]
-//  pub struct CloneMutex<T>(Mutex<T>);
-//  impl<T: Clone> Clone for CloneMutex<T> {
-//      fn clone(&self) -> Self {
-//          CloneMutex(Mutex::new(self.0.lock().unwrap().clone()))
-//      }
-//  }
+pub use glyphon::cosmic_text::Align;
 
-#[derive(Debug)]
-pub struct Text{
-    buffer: Mutex<Buffer>,
-    pub text: String,
-    pub color: Color,
-    pub font: Font,
-    pub size: f32,
+#[derive(Debug, Clone)]
+pub struct Cursor(pub u32, pub u32);//Line, Char
+#[derive(Debug, Clone)]
+pub struct Span{
+    pub text: String, 
+    pub font_size: f32,
     pub line_height: f32,
+    pub font: Font,
+    pub color: Color
+}
+
+impl Span {
+    pub fn new(text: &str, font_size: f32, line_height: f32, font: Font, color: Color) -> Self {
+        Span{text: text.to_string(), font_size, line_height, font, color}
+    }
+    pub fn into_inner(&self, z_index: usize) -> (&str, Attrs<'static>) {
+        let color = glyphon::cosmic_text::Color::rgba(self.color.0, self.color.1, self.color.2, self.color.3);
+        let attrs = self.font.1.clone().color(color).metadata(z_index).metrics(Metrics::new(self.font_size, self.line_height));
+        (&self.text, attrs)
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct Text{
+    pub cursor: Option<(Cursor, Option<Cursor>)>,
+    pub spans: Vec<Span>,
     pub width: Option<f32>,
     pub align: Align,
 }
 
-impl Clone for Text {
-    fn clone(&self) -> Self {
-        Text{buffer: Mutex::new(self.buffer.lock().unwrap().clone()),
-            text: self.text.clone(), color: self.color.clone(),
-            font: self.font.clone(), size: self.size.clone(),
-            line_height: self.line_height.clone(), width: self.width.clone(),
-            align: self.align.clone()
-        }
-    }
-}
-
 impl Text {
     pub fn new(
-        font_system: &mut impl AsMut<FontSystem>,
-        text: &str, color: Color, font: Font, align: Align,
-        size: f32, line_height: f32, width: Option<f32>
+        cursor: Option<(Cursor, Option<Cursor>)>,
+        spans: Vec<Span>, width: Option<f32>, align: Align,
     ) -> Self {
-        let metrics = Metrics::new(size, line_height);
+        Text{cursor, spans, width, align}
+    }
+
+    pub fn size(&self, font_system: &mut impl AsMut<FontAtlas>) -> (f32, f32) {
+        Self::buffer_size(&self.get_buffer(font_system.as_mut(), 0))
+    }
+
+    pub fn set_color(&mut self, color: Color) {
+        self.spans.iter_mut().for_each(|s| s.color = color);
+    }
+
+    pub fn width(mut self, width: Option<f32>) -> Self {self.width = width; self}
+//      let (mut w, mut h, mut i) = (0.0f32, 0.0, 0);
+//      while let Some(line) = buffer.line_layout(font_system.as_mut(), i) {
+//          i += 1;
+//          let (lw, lh) = line.iter().fold((0.0f32, 0.0f32), |(w, h), span|
+//              (w.max(span.w), h+span.line_height_opt.unwrap_or(
+//                  span.max_ascent+span.max_descent
+//              ))
+//          );
+//          w = w.max(lw);
+//          h+=lh.max(self.line_height);
+//      }
+//      let newline = buffer.lines.last().and_then(|line| (!self.text.is_empty() && line.ending() != LineEnding::None).then_some(self.line_height)).unwrap_or_default();
+//      (w, h+newline)
+//  }
+
+    fn get_buffer(&self, font_system: &mut impl AsMut<FontSystem>, z_index: usize) -> Buffer {
+        let metrics = Metrics::new(self.spans[0].font_size, self.spans[0].line_height);
         let mut buffer = Buffer::new(font_system.as_mut(), metrics);
         buffer.set_wrap(font_system.as_mut(), Wrap::WordOrGlyph);
-        buffer.set_size(font_system.as_mut(), width.map(|w| 1.0+w), None);
-        buffer.set_text(font_system.as_mut(), text, font.1, Shaping::Basic);
-        buffer.lines.iter_mut().for_each(|l| {l.set_align(Some(align));});
-        Text{
-            buffer: Mutex::new(buffer),
-            text: text.to_string(), color, font, align,
-            size, line_height, width
-        }
-    }
-
-    pub fn size(&self, font_system: &mut impl AsMut<FontSystem>) -> (f32, f32) {
-        self.update_buffer(font_system, 0);
-        let mut buffer = self.buffer.lock().unwrap();
-        let (mut w, mut h, mut i) = (0.0f32, 0.0, 0);
-        while let Some(line) = buffer.line_layout(font_system.as_mut(), i) {
-            i += 1;
-            let (lw, lh) = line.iter().fold((0.0f32, 0.0f32), |(w, h), span|
-                (w.max(span.w), h+span.line_height_opt.unwrap_or(
-                    span.max_ascent+span.max_descent
-                ))
-            );
-            w = w.max(lw);
-            h+=lh.max(self.line_height);
-        }
-        let newline = buffer.lines.last().and_then(|line| (!self.text.is_empty() && line.ending() != LineEnding::None).then_some(self.line_height)).unwrap_or_default();
-        (w, h+newline)
-    }
-
-    fn update_buffer(&self, font_system: &mut impl AsMut<FontSystem>, z: usize) {
-        let mut buffer = self.buffer.lock().unwrap();
-        //TODO: check if text changed first
-        // pub fn get_text(&self) -> String {self.0.lines.iter().fold(String::new(), |a, l| a+"\n"+l.text())}
-        buffer.set_metrics(font_system.as_mut(), Metrics::new(self.size, self.line_height));
-        buffer.set_wrap(font_system.as_mut(), Wrap::WordOrGlyph);
         buffer.set_size(font_system.as_mut(), self.width.map(|w| 1.0+w), None);
-        buffer.set_text(font_system.as_mut(), &self.text, self.font.1.metadata(z), Shaping::Basic);
-        buffer.lines.iter_mut().for_each(|l| {l.set_align(Some(self.align));});
+        buffer.set_rich_text(font_system.as_mut(), self.spans.iter().map(|s|
+            s.into_inner(z_index)
+        ), &self.spans[0].font.1, Shaping::Basic, Some(self.align));
+        buffer
+    }
+
+    fn buffer_size(buffer: &Buffer) -> (f32, f32) {
+        buffer.layout_runs().fold((0.0, 0.0), |a, l| {
+            (a.0.max(l.line_w), a.1+l.line_height.max(60.0))
+        })
     }
 }
 
@@ -175,12 +175,11 @@ impl TextRenderer {
         self.text_atlas.trim();
         self.viewport.update(queue, Resolution{width: width as u32, height: height as u32});
         let text_areas = text_areas.into_iter().map(|(z, a, t)| {
-            t.update_buffer(font_atlas, z as usize);
-            let c = glyphon::Color::rgba(t.color.0, t.color.1, t.color.2, t.color.3);
-            let b = t.buffer.into_inner().unwrap();
-            (b, a, c)
+            let mut b = t.get_buffer(font_atlas, z as usize);
+            b.set_size(font_atlas.as_mut(), Some(Text::buffer_size(&b).0), None);
+            (a, b)
         }).collect::<Vec<_>>();
-        let text_areas = text_areas.iter().map(|(b, a, c)| {
+        let text_areas = text_areas.iter().map(|(a, b)| {
             let bounds = a.bounds(width, height);
             glyphon::TextArea{
                 buffer: b,
@@ -193,7 +192,7 @@ impl TextRenderer {
                     right: (bounds.0 + bounds.2).ceil() as i32,
                     bottom: (bounds.1 + bounds.3).ceil() as i32+2,//TODO: Find out why this is +2
                 },
-                default_color: *c,
+                default_color: glyphon::Color::rgba(139, 0, 139, 255),
                 custom_glyphs: &[]
             }
         });

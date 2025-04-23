@@ -1,5 +1,4 @@
 use wgpu::{DepthStencilState, MultisampleState, TextureFormat, RenderPass, Device, Queue};
-pub use glyphon::cosmic_text::Align;
 
 mod shape;
 mod color;
@@ -12,7 +11,7 @@ use text::TextRenderer;
 
 pub use color::Color;
 pub use image::{ImageAtlas, Image};
-pub use text::{FontAtlas, Font, Text};
+pub use text::{FontAtlas, Font, Text, Span, Cursor, Align};
 
 #[derive(Debug, Clone, Copy)]
 pub struct Area(pub (f32, f32), pub Option<(f32, f32, f32, f32)>);
