@@ -48,7 +48,7 @@ impl Text {
     }
 
     pub fn size(&self, font_system: &mut impl AsMut<FontAtlas>) -> (f32, f32) {
-        Self::buffer_size(&self.get_buffer(font_system.as_mut(), 0))
+        Self::buffer_size(&self.get_buffer(font_system.as_mut(), 0), &self.spans)
     }
 
     pub fn set_color(&mut self, color: Color) {
@@ -56,36 +56,31 @@ impl Text {
     }
 
     pub fn width(mut self, width: Option<f32>) -> Self {self.width = width; self}
-//      let (mut w, mut h, mut i) = (0.0f32, 0.0, 0);
-//      while let Some(line) = buffer.line_layout(font_system.as_mut(), i) {
-//          i += 1;
-//          let (lw, lh) = line.iter().fold((0.0f32, 0.0f32), |(w, h), span|
-//              (w.max(span.w), h+span.line_height_opt.unwrap_or(
-//                  span.max_ascent+span.max_descent
-//              ))
-//          );
-//          w = w.max(lw);
-//          h+=lh.max(self.line_height);
-//      }
-//      let newline = buffer.lines.last().and_then(|line| (!self.text.is_empty() && line.ending() != LineEnding::None).then_some(self.line_height)).unwrap_or_default();
-//      (w, h+newline)
-//  }
 
     fn get_buffer(&self, font_system: &mut impl AsMut<FontSystem>, z_index: usize) -> Buffer {
-        let metrics = Metrics::new(self.spans[0].font_size, self.spans[0].line_height);
+        let default_attrs = self.spans.first().expect("Text must have at least one span even if its empty").into_inner(0).1;
+        let metrics = Metrics::from(default_attrs.metrics_opt.unwrap());
         let mut buffer = Buffer::new(font_system.as_mut(), metrics);
         buffer.set_wrap(font_system.as_mut(), Wrap::WordOrGlyph);
         buffer.set_size(font_system.as_mut(), self.width.map(|w| 1.0+w), None);
-        buffer.set_rich_text(font_system.as_mut(), self.spans.iter().map(|s|
-            s.into_inner(z_index)
-        ), &self.spans[0].font.1, Shaping::Basic, Some(self.align));
+        buffer.set_rich_text(
+            font_system.as_mut(), self.spans.iter().map(|s| s.into_inner(z_index)), 
+            &default_attrs, Shaping::Basic, Some(self.align)
+        );
         buffer
     }
 
-    fn buffer_size(buffer: &Buffer) -> (f32, f32) {
-        buffer.layout_runs().fold((0.0, 0.0), |a, l| {
-            (a.0.max(l.line_w), a.1+l.line_height.max(60.0))
-        })
+    fn buffer_size(buffer: &Buffer, spans: &[Span]) -> (f32, f32) {
+        let new_line = spans.iter().rev().find_map(|s| (!s.text.is_empty()).then(||
+            (s.text.get(s.text.len()-1..) == Some("\n")).then_some(s.line_height)
+        )).flatten().unwrap_or_default();
+        let (w, h) = buffer.lines.iter().fold((0.0f32, 0.0f32), |a, line| {
+            let (w, h) = line.layout_opt().unwrap().iter().fold((0.0f32, 0.0f32), |a, span|
+                (a.0+span.w, a.1.max(span.line_height_opt.unwrap()))
+            );
+            (a.0.max(w), a.1+h)
+        });
+        (w, h+new_line)
     }
 }
 
@@ -94,10 +89,6 @@ pub type Font = Arc<(ID, Attrs<'static>)>;
 pub struct FontAtlas{
     fonts: Option<HashMap<Arc<Vec<u8>>, Font>>,
     font_system: FontSystem
-}
-
-impl AsMut<FontSystem> for FontAtlas {
-    fn as_mut(&mut self) -> &mut FontSystem {&mut self.font_system}
 }
 
 impl FontAtlas {
@@ -133,6 +124,10 @@ impl Default for FontAtlas {fn default() -> Self {
         font_system: FontSystem::new_with_locale_and_db("".to_string(), Database::new())
     }
 }}
+
+impl AsMut<FontSystem> for FontAtlas {
+    fn as_mut(&mut self) -> &mut FontSystem {&mut self.font_system}
+}
 
 pub struct TextRenderer {
     text_renderer: glyphon::TextRenderer,
@@ -176,7 +171,8 @@ impl TextRenderer {
         self.viewport.update(queue, Resolution{width: width as u32, height: height as u32});
         let text_areas = text_areas.into_iter().map(|(z, a, t)| {
             let mut b = t.get_buffer(font_atlas, z as usize);
-            b.set_size(font_atlas.as_mut(), Some(Text::buffer_size(&b).0), None);
+            let width = Text::buffer_size(&b, &t.spans).0;
+            b.set_size(&mut font_atlas.font_system, Some(width), None);
             (a, b)
         }).collect::<Vec<_>>();
         let text_areas = text_areas.iter().map(|(a, b)| {
