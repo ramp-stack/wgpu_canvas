@@ -48,7 +48,7 @@ impl Text {
     }
 
     pub fn size(&self, font_system: &mut impl AsMut<FontAtlas>) -> (f32, f32) {
-        Self::buffer_size(&self.get_buffer(font_system.as_mut(), 0), &self.spans)
+       Self::buffer_size(&self.get_buffer(font_system.as_mut(), 0), &self.spans)
     }
 
     pub fn set_color(&mut self, color: Color) {
@@ -65,21 +65,23 @@ impl Text {
         buffer.set_size(font_system.as_mut(), self.width.map(|w| 1.0+w), None);
         buffer.set_rich_text(
             font_system.as_mut(), self.spans.iter().map(|s| s.into_inner(z_index)), 
-            &default_attrs, Shaping::Basic, Some(self.align)
+            &default_attrs, Shaping::Advanced, Some(self.align)
         );
         buffer
     }
 
     fn buffer_size(buffer: &Buffer, spans: &[Span]) -> (f32, f32) {
-        let new_line = spans.iter().rev().find_map(|s| (!s.text.is_empty()).then(||
+        let new_line = spans.iter().rev().find_map(|s| (!s.text.is_empty()).then(||{
             (s.text.get(s.text.len()-1..) == Some("\n")).then_some(s.line_height)
-        )).flatten().unwrap_or_default();
-        let (w, h) = buffer.lines.iter().fold((0.0f32, 0.0f32), |a, line| {
-            let (w, h) = line.layout_opt().unwrap().iter().fold((0.0f32, 0.0f32), |a, span|
-                (a.0+span.w, a.1.max(span.line_height_opt.unwrap()))
-            );
-            (a.0.max(w), a.1+h)
+        })).flatten().unwrap_or_default();
+        
+        let (w, h) = buffer.layout_runs().fold((0.0f32, 0.0f32), |(max_w, total_h), run| {
+            let w = run.line_w;
+            let h = run.line_height;
+            (max_w.max(w), total_h + h)
         });
+
+        // println!("Buffer size: {:?}",  buffer.layout_runs().collect::<Vec<_>>().len());
         (w, h+new_line)
     }
 }
@@ -186,7 +188,7 @@ impl TextRenderer {
                     left: bounds.0 as i32,
                     top: bounds.1 as i32,
                     right: (bounds.0 + bounds.2).ceil() as i32,
-                    bottom: (bounds.1 + bounds.3).ceil() as i32+2,//TODO: Find out why this is +2
+                    bottom: (bounds.1 + bounds.3).ceil() as i32,
                 },
                 default_color: glyphon::Color::rgba(139, 0, 139, 255),
                 custom_glyphs: &[]
