@@ -1,6 +1,5 @@
 use glyphon::cosmic_text::Cursor as CosmicCursor;
 use glyphon::{Affinity, Buffer};
-use crate::CanvasItem;
 
 #[derive(Debug, Clone, Copy)]
 pub enum CursorAction {
@@ -35,7 +34,7 @@ impl Cursor {
     pub fn get_index(&mut self, buffer: &Buffer) -> usize {
         buffer.layout_runs().enumerate().flat_map(|(line_idx, run)| {
             match line_idx < self.line {
-                true => run.glyphs.iter().cloned().collect::<Vec<_>>(),
+                true => run.glyphs.to_vec(),
                 false if line_idx == self.line => {
                     run.glyphs.iter().take_while(|glyph| glyph.end <= self.index).cloned().collect()
                 },
@@ -76,26 +75,26 @@ impl Cursor {
                 self.index = next_run.glyphs.last().map(|g| g.end).unwrap_or(0);
             }
         }
-        self.position(&buffer);
+        self.position(buffer);
     }
 
     pub fn move_left(&mut self, buffer: &Buffer) {
         self.line = self.line.min(buffer.layout_runs().collect::<Vec<_>>().len()-1);
         buffer.layout_runs().enumerate().for_each(|(i, run)| {
             if i == self.line {
-                match run.glyphs.len() == 0 && self.line != 0 {
+                match run.glyphs.is_empty() && self.line != 0 {
                     true => self.line -= 1,
                     false => self.index -= 1
                 }
             }
         });
-        self.position(&buffer);
+        self.position(buffer);
     }
 
     pub fn move_newline(&mut self, buffer: &Buffer) {
         self.line += 1;
         self.index = 0;
-        self.position(&buffer);
+        self.position(buffer);
     }
 
     pub fn new_from_click(buffer: &Buffer, x: f32, y: f32) -> Option<Cursor> {

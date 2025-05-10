@@ -1,4 +1,4 @@
-use glyphon::{Resolution, SwashCache, FontSystem, TextBounds, TextAtlas, Viewport, Metrics, Shaping, Buffer, Family, Cache, Attrs, Wrap, Affinity};
+use glyphon::{Resolution, SwashCache, FontSystem, TextBounds, TextAtlas, Viewport, Metrics, Shaping, Buffer, Family, Cache, Attrs, Wrap};
 use wgpu::{DepthStencilState, MultisampleState, TextureFormat, RenderPass, Device, Queue};
 use glyphon::fontdb::{Database, Source, ID};
 
@@ -51,13 +51,13 @@ impl Text {
     pub fn cursor_action(&mut self, font_system: &mut impl AsMut<FontAtlas>, action: CursorAction) -> Option<(f32, f32)> {
         let buffer: Buffer = self.get_buffer(font_system.as_mut(), 0);
         if let Some(cursor) = &mut self.cursor {
-            match action {
+            return match action {
                 CursorAction::MoveRight => {cursor.move_right(&buffer); cursor.position },
                 CursorAction::MoveLeft => { cursor.move_left(&buffer); cursor.position },
                 CursorAction::MoveNewline => { cursor.move_newline(&buffer); cursor.position },
                 CursorAction::GetIndex => Some((cursor.get_index(&buffer) as f32, cursor.line as f32)),
                 CursorAction::GetPosition => { cursor.position(&buffer); cursor.position },
-            }
+            };
         }
         None
     }
