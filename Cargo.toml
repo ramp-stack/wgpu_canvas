@@ -15,3 +15,4 @@ bytemuck = "1.21.0"
 glyphon = "0.9.0"
 image = {package="image", version="0.25.5"}
 fast_image_resize = {version="5.1.2", features=["image"]}
+unicode-segmentation = "1.12.0"

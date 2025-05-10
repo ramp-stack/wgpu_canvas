@@ -6,134 +6,9 @@ use std::sync::Arc;
 use std::collections::HashMap;
 
 use super::{Area, Color};
-
+pub use crate::cursor::{Cursor, CursorAction};
 pub use glyphon::cosmic_text::{Align};
-use glyphon::cosmic_text::Cursor as CosmicCursor;
 
-#[derive(Debug, Clone, Copy)]
-pub struct Cursor {
-    pub line: usize,
-    pub index: usize,
-    pub affinity: Affinity,
-}
-
-impl Default for Cursor {
-    fn default() -> Self {Cursor { line: 0, index: 0, affinity: Affinity::Before }}
-}
-
-impl Cursor {
-    fn from(cursor: CosmicCursor) -> Self {
-        Cursor { line: cursor.line, index: cursor.index, affinity: cursor.affinity }
-    }
-
-    pub fn position(&mut self, buffer: &Buffer) -> Option<(f32, f32)> {
-        // println!("Getting position");
-       
-        buffer.layout_runs().enumerate().find_map(|(i, run)| {
-            if i == self.line {
-                let mut x_pos = 0.0;
-                for glyph in run.glyphs {
-                    if glyph.start <= self.index && self.index < glyph.end {
-                        return Some((x_pos, run.line_y - run.line_height));
-                    }
-                    x_pos += glyph.w;
-                }
-                let line_width: f32 = run.glyphs.iter().map(|g| g.w).sum();
-                return Some((line_width, run.line_y - run.line_height));
-            }
-            None
-        })        
-    }
-
-    pub fn move_right(&mut self, buffer: &Buffer) {
-        let mut runs = buffer.layout_runs().enumerate();
-    
-        if let Some((_, run)) = runs.find(|(i, _)| *i == self.line) {
-            let line_end = run.glyphs.last().map(|g| g.end).unwrap_or(0);
-            if self.index < line_end {
-                self.index += 1;
-            } else if let Some((next_line, next_run)) = runs.find(|(i, _)| *i == self.line + 1) {
-                self.line = next_line;
-                self.index = next_run.glyphs.last().map(|g| g.end).unwrap_or(0);
-            }
-        }
-    }
-
-    pub fn move_left(&mut self, buffer: &Buffer) {
-        println!("MOVE LEFT");
-        buffer.layout_runs().enumerate().for_each(|(i, run)| {
-            println!("Run: {:?}", i);
-            if i == self.line {
-                println!("Line found. {:?}", self.line);
-                match run.glyphs.len() > 0 {
-                    true => {
-                        self.index -= 1;
-                        if self.index == 0 {
-                            self.line -= 1;
-                            println!("END OF LINE {:?}", self.line);
-                        }
-                    },
-                    false => {
-                        // self.line -= 1;
-                        buffer.layout_runs().enumerate().for_each(|(i, prev_run)| {
-                            if i == self.line {
-                                self.index = prev_run.glyphs.len();
-                            }
-                        });
-                    }
-                }
-            }
-        });
-    }
-    
-
-    pub fn move_up(&mut self, buffer: &Buffer) {
-        let mut runs: Vec<_> = buffer.layout_runs().collect();
-
-        if runs.len() != 1 && self.line != 0 {
-            self.line -= 1;
-        }
-    }
-
-    pub fn move_down(&mut self, buffer: &Buffer) {
-        let mut runs: Vec<_> = buffer.layout_runs().collect();
-
-        if runs.len() != (self.line + 1) {
-            self.line += 1;
-        }
-    }
-
-    // pub fn new_line(&mut self, buffer: &Buffer) {
-    //     let mut runs = buffer.layout_runs().enumerate();
-    
-    //     if let Some((_, run)) = runs.find(|(i, _)| *i == self.line) {
-    //         let mut remaining_glyphs = 0;
-    
-    //         for glyph in run.glyphs {
-    //             if glyph.start >= self.index {
-    //                 remaining_glyphs += 1;  
-    //             }
-    //         }
-
-    //         let glyphs = run.glyphs.len();
-    //         let to_remove = glyphs - remaining_glyphs;
-    //         run.glyphs.retain(|(i, _)| i >= to_remove);
-
-    //         // let new_glyphs = run.glyphs.iter().filter(|glyph| glyph.end <= self.index).cloned().collect();
-    
-    //         // run.glyphs = new_glyphs;
-    
-    //         // let mut new_run = run.clone(); 
-    //         // new_run.glyphs = remaining_glyphs;
-    
-    //         // buffer.layout_runs().insert(self.line + 1, new_run);
-    
-    //         // self.line += 1;
-    //         // self.index = 0;
-    //     }
-    // }
-    
-}
 
 #[derive(Debug, Clone)]
 pub struct Span{
@@ -164,38 +39,27 @@ pub struct Text{
 }
 
 impl Text {
-    pub fn new(spans: Vec<Span>, width: Option<f32>, align: Align, with_cursor: bool) -> Self {
-        Text{spans, width, align, cursor: with_cursor.then(|| Cursor::default())}
+    pub fn new(spans: Vec<Span>, width: Option<f32>, align: Align, cursor: Option<Cursor>) -> Self {
+        Text{spans, width, align, cursor}
     }
 
-    pub fn set_cursor(&mut self, font_system: &mut impl AsMut<FontAtlas>, x: f32, y: f32) {
-        let buffer = self.get_buffer(font_system.as_mut(), 0);
-        self.cursor = buffer.hit(x, y).map(Cursor::from);
+    pub fn set_cursor(&mut self, font_system: &mut impl AsMut<FontAtlas>, pos: (f32, f32)) {
+        let buffer: Buffer = self.get_buffer(font_system.as_mut(), 0);
+        self.cursor = Cursor::new_from_click(&buffer, pos.0, pos.1);
     }
 
-    pub fn cursor_position(&mut self, font_system: &mut impl AsMut<FontAtlas>) -> Option<(f32, f32)> {
-        let buffer = self.get_buffer(font_system.as_mut(), 0);
-        self.cursor.as_mut().map(|c| c.position(&buffer))?
-    }
-
-    pub fn cursor_right(&mut self, font_system: &mut impl AsMut<FontAtlas>) {
-        let buffer = self.get_buffer(font_system.as_mut(), 0);
-        self.cursor.as_mut().map(|c| c.move_right(&buffer));
-    }
-
-    pub fn cursor_left(&mut self, font_system: &mut impl AsMut<FontAtlas>) {
-        let buffer = self.get_buffer(font_system.as_mut(), 0);
-        self.cursor.as_mut().map(|c| c.move_left(&buffer));
-    }
-
-    pub fn cursor_up(&mut self, font_system: &mut impl AsMut<FontAtlas>) {
-        let buffer = self.get_buffer(font_system.as_mut(), 0);
-        self.cursor.as_mut().map(|c| c.move_up(&buffer));
-    }
-
-    pub fn cursor_down(&mut self, font_system: &mut impl AsMut<FontAtlas>) {
-        let buffer = self.get_buffer(font_system.as_mut(), 0);
-        // self.cursor.as_mut().map(|c| c.new_line(&buffer));
+    pub fn cursor_action(&mut self, font_system: &mut impl AsMut<FontAtlas>, action: CursorAction) -> Option<(f32, f32)> {
+        let buffer: Buffer = self.get_buffer(font_system.as_mut(), 0);
+        if let Some(cursor) = &mut self.cursor {
+            match action {
+                CursorAction::MoveRight => {cursor.move_right(&buffer); cursor.position },
+                CursorAction::MoveLeft => { cursor.move_left(&buffer); cursor.position },
+                CursorAction::MoveNewline => { cursor.move_newline(&buffer); cursor.position },
+                CursorAction::GetIndex => Some((cursor.get_index(&buffer) as f32, cursor.line as f32)),
+                CursorAction::GetPosition => { cursor.position(&buffer); cursor.position },
+            }
+        }
+        None
     }
 
     pub fn size(&self, font_system: &mut impl AsMut<FontAtlas>) -> (f32, f32) {
@@ -213,7 +77,7 @@ impl Text {
         let metrics = Metrics::from(default_attrs.metrics_opt.unwrap());
         let mut buffer = Buffer::new(font_system.as_mut(), metrics);
         buffer.set_wrap(font_system.as_mut(), Wrap::WordOrGlyph);
-        buffer.set_size(font_system.as_mut(), self.width.map(|w| 1.0+w), None);
+        buffer.set_size(font_system.as_mut(), self.width.map(|w| 1.0+w), Some(f32::INFINITY));
         buffer.set_rich_text(
             font_system.as_mut(), self.spans.iter().map(|s| s.into_inner(z_index)), 
             &default_attrs, Shaping::Advanced, Some(self.align)
