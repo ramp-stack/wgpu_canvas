@@ -4,6 +4,7 @@ mod shape;
 mod color;
 mod image;
 mod text;
+mod cursor;
 
 use color::ColorRenderer;
 use image::ImageRenderer;
@@ -11,7 +12,7 @@ use text::TextRenderer;
 
 pub use color::Color;
 pub use image::{ImageAtlas, Image};
-pub use text::{FontAtlas, Font, Text, Span, Cursor, Align};
+pub use text::{FontAtlas, Font, Text, Span, Align, Cursor, CursorAction};
 
 #[derive(Debug, Clone, Copy)]
 pub struct Area(pub (f32, f32), pub Option<(f32, f32, f32, f32)>);
@@ -49,7 +50,7 @@ pub enum CanvasItem {
 pub struct CanvasRenderer {
     color_renderer: ColorRenderer,
     image_renderer: ImageRenderer,
-    text_renderer: TextRenderer,
+    text_renderer: TextRenderer
 }
 
 impl CanvasRenderer {

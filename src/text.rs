@@ -6,11 +6,10 @@ use std::sync::Arc;
 use std::collections::HashMap;
 
 use super::{Area, Color};
+pub use crate::cursor::{Cursor, CursorAction};
+pub use glyphon::cosmic_text::{Align};
 
-pub use glyphon::cosmic_text::Align;
 
-#[derive(Debug, Clone)]
-pub struct Cursor(pub u32, pub u32);//Line, Char
 #[derive(Debug, Clone)]
 pub struct Span{
     pub text: String, 
@@ -33,22 +32,38 @@ impl Span {
 
 #[derive(Debug, Clone)]
 pub struct Text{
-    pub cursor: Option<(Cursor, Option<Cursor>)>,
     pub spans: Vec<Span>,
     pub width: Option<f32>,
     pub align: Align,
+    pub cursor: Option<Cursor>,
 }
 
 impl Text {
-    pub fn new(
-        cursor: Option<(Cursor, Option<Cursor>)>,
-        spans: Vec<Span>, width: Option<f32>, align: Align,
-    ) -> Self {
-        Text{cursor, spans, width, align}
+    pub fn new(spans: Vec<Span>, width: Option<f32>, align: Align, cursor: Option<Cursor>) -> Self {
+        Text{spans, width, align, cursor}
+    }
+
+    pub fn set_cursor(&mut self, font_system: &mut impl AsMut<FontAtlas>, pos: (f32, f32)) {
+        let buffer: Buffer = self.get_buffer(font_system.as_mut(), 0);
+        self.cursor = Cursor::new_from_click(&buffer, pos.0, pos.1);
+    }
+
+    pub fn cursor_action(&mut self, font_system: &mut impl AsMut<FontAtlas>, action: CursorAction) -> Option<(f32, f32)> {
+        let buffer: Buffer = self.get_buffer(font_system.as_mut(), 0);
+        if let Some(cursor) = &mut self.cursor {
+            return match action {
+                CursorAction::MoveRight => {cursor.move_right(&buffer); cursor.position },
+                CursorAction::MoveLeft => { cursor.move_left(&buffer); cursor.position },
+                CursorAction::MoveNewline => { cursor.move_newline(&buffer); cursor.position },
+                CursorAction::GetIndex => Some((cursor.get_index(&buffer) as f32, cursor.line as f32)),
+                CursorAction::GetPosition => { cursor.position(&buffer); cursor.position },
+            };
+        }
+        None
     }
 
     pub fn size(&self, font_system: &mut impl AsMut<FontAtlas>) -> (f32, f32) {
-        Self::buffer_size(&self.get_buffer(font_system.as_mut(), 0), &self.spans)
+       Self::buffer_size(&self.get_buffer(font_system.as_mut(), 0), &self.spans)
     }
 
     pub fn set_color(&mut self, color: Color) {
@@ -62,10 +77,10 @@ impl Text {
         let metrics = Metrics::from(default_attrs.metrics_opt.unwrap());
         let mut buffer = Buffer::new(font_system.as_mut(), metrics);
         buffer.set_wrap(font_system.as_mut(), Wrap::WordOrGlyph);
-        buffer.set_size(font_system.as_mut(), self.width.map(|w| 1.0+w), None);
+        buffer.set_size(font_system.as_mut(), self.width.map(|w| 1.0+w), Some(f32::INFINITY));
         buffer.set_rich_text(
             font_system.as_mut(), self.spans.iter().map(|s| s.into_inner(z_index)), 
-            &default_attrs, Shaping::Basic, Some(self.align)
+            &default_attrs, Shaping::Advanced, Some(self.align)
         );
         buffer
     }
@@ -74,12 +89,13 @@ impl Text {
         let new_line = spans.iter().rev().find_map(|s| (!s.text.is_empty()).then(||
             (s.text.get(s.text.len()-1..) == Some("\n")).then_some(s.line_height)
         )).flatten().unwrap_or_default();
-        let (w, h) = buffer.lines.iter().fold((0.0f32, 0.0f32), |a, line| {
-            let (w, h) = line.layout_opt().unwrap().iter().fold((0.0f32, 0.0f32), |a, span|
-                (a.0+span.w, a.1.max(span.line_height_opt.unwrap()))
-            );
-            (a.0.max(w), a.1+h)
+        
+        let (w, h) = buffer.layout_runs().fold((0.0f32, 0.0f32), |(max_w, total_h), run| {
+            let w = run.line_w;
+            let h = run.line_height;
+            (max_w.max(w), total_h + h)
         });
+
         (w, h+new_line)
     }
 }
@@ -186,7 +202,7 @@ impl TextRenderer {
                     left: bounds.0 as i32,
                     top: bounds.1 as i32,
                     right: (bounds.0 + bounds.2).ceil() as i32,
-                    bottom: (bounds.1 + bounds.3).ceil() as i32+2,//TODO: Find out why this is +2
+                    bottom: (bounds.1 + bounds.3).ceil() as i32,
                 },
                 default_color: glyphon::Color::rgba(139, 0, 139, 255),
                 custom_glyphs: &[]
