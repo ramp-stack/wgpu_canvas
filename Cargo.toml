@@ -2,10 +2,13 @@
 name = "wgpu_canvas"
 version = "3.1.0"
 edition = "2021"
-description = "WGPU Renderer API for a 2D Canvas, Text, Color Shapes, Images"
 license = "BSD-3-Clause"
-repository = "https://github.com/CalebCouch/wgpu_canvas.git"
-
+repository = "https://github.com/ramp-stack/wgpu_canvas.git"
+description = "A 2D WGPU renderer API for drawing text, shapes, and images with Rust."
+documentation = "https://docs.rs/wgpu_canvas"
+readme = "README.md"
+keywords = ["wgpu", "canvas", "2d", "graphics", "rust"]
+categories = ["graphics", "rendering", "gui", "game-development"]
 
 [dependencies]
 wgpu = "25.0.0"
