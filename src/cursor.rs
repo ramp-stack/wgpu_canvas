@@ -1,5 +1,5 @@
 use glyphon::cosmic_text::Cursor as CosmicCursor;
-use glyphon::{Affinity, Buffer};
+use glyphon::{Affinity, Buffer, LayoutGlyph};
 
 #[derive(Debug, Clone, Copy)]
 pub enum CursorAction {
@@ -36,11 +36,16 @@ impl Cursor {
             match line_idx < self.line {
                 true => run.glyphs.to_vec(),
                 false if line_idx == self.line => {
-                    run.glyphs.iter().take_while(|glyph| glyph.end <= self.index).cloned().collect()
-                },
+                    run.glyphs
+                        .iter()
+                        .enumerate()
+                        .take_while(|(i, _)| *i < self.index)
+                        .map(|(_, glyph)| glyph.clone())
+                        .collect::<Vec<glyphon::LayoutGlyph>>()
+                },                
                 false => Vec::new()
             }
-        }).count() + self.line
+        }).collect::<Vec<LayoutGlyph>>().len() + self.line
     }
 
     pub fn position(&mut self, buffer: &Buffer) {
@@ -49,8 +54,8 @@ impl Cursor {
         for (i, run) in buffer.layout_runs().enumerate() {
             line_h = run.line_height;
             if i == self.line {
-                for glyph in run.glyphs {
-                    if glyph.start <= self.index && self.index < glyph.end {
+                for (x, glyph) in run.glyphs.into_iter().enumerate() {
+                    if x == self.index {
                         self.position = Some((x_pos, line_h*(self.line+1) as f32));
                         return;
                     }
@@ -68,8 +73,12 @@ impl Cursor {
         let mut runs = buffer.layout_runs().enumerate();
         if let Some((_, run)) = runs.find(|(i, _)| *i == self.line) {
             let line_end = run.glyphs.last().map(|g| g.end).unwrap_or(0);
-            if self.index < line_end {
-                self.index += 1;
+            if self.index <= line_end {
+                match self.index {
+                    0 => self.index = 1,
+                    1 => self.index = 3,
+                    _ => self.index = self.index * 2 - 1
+                }
             } else if let Some((next_line, next_run)) = runs.find(|(i, _)| *i == self.line + 1) {
                 self.line = next_line;
                 self.index = next_run.glyphs.last().map(|g| g.end).unwrap_or(0);
@@ -84,7 +93,7 @@ impl Cursor {
             if i == self.line {
                 match run.glyphs.is_empty() && self.line != 0 {
                     true => self.line -= 1,
-                    false => self.index -= 1
+                    false => self.index -= 2
                 }
             }
         });
