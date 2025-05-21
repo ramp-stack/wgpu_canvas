@@ -54,8 +54,8 @@ impl Cursor {
         for (i, run) in buffer.layout_runs().enumerate() {
             line_h = run.line_height;
             if i == self.line {
-                for (x, glyph) in run.glyphs.into_iter().enumerate() {
-                    if x == self.index {
+                for glyph in run.glyphs.into_iter() {
+                    if glyph.start <= self.index && self.index < glyph.end {
                         self.position = Some((x_pos, line_h*(self.line+1) as f32));
                         return;
                     }
@@ -194,6 +194,8 @@ impl Cursor {
                 new_cursor_opt = Some(new_cursor);
             }
         };
+
+        println!(" NEW CURSOR {:?} ", new_cursor_opt);
 
         new_cursor_opt
     }
