@@ -2,7 +2,7 @@ mod renderer;
 
 pub use renderer::ColorRenderer;
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Hash)]
 pub struct Color(pub u8, pub u8, pub u8, pub u8);
 
 impl Color {

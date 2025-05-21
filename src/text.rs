@@ -2,7 +2,8 @@ use glyphon::{Resolution, SwashCache, FontSystem, TextBounds, TextAtlas, Viewpor
 use wgpu::{DepthStencilState, MultisampleState, TextureFormat, RenderPass, Device, Queue};
 use glyphon::fontdb::{Database, Source, ID};
 
-use std::sync::Arc;
+use std::hash::{Hash, Hasher};
+use std::sync::{Arc, Mutex};
 use std::collections::HashMap;
 
 use super::{Area, Color};
@@ -19,6 +20,16 @@ pub struct Span{
     pub color: Color
 }
 
+impl Hash for Span {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.text.hash(state);
+        self.font_size.to_bits().hash(state);    // <-- use to_bits for floats
+        self.line_height.to_bits().hash(state);
+        self.font.hash(state);
+        self.color.hash(state);
+    }
+}
+
 impl Span {
     pub fn new(text: &str, font_size: f32, line_height: f32, font: Font, color: Color) -> Self {
         Span{text: text.to_string(), font_size, line_height, font, color}
@@ -32,15 +43,78 @@ impl Span {
 
 #[derive(Debug, Clone)]
 pub struct Text{
+    pub cached: Arc<Mutex<Option<CachedBuffer>>>,
     pub spans: Vec<Span>,
     pub width: Option<f32>,
     pub align: Align,
     pub cursor: Option<Cursor>,
 }
 
+#[derive(Clone, Debug)]
+pub struct CachedBuffer {
+    pub buffer: Buffer,
+    pub z_index: usize,
+    pub width: Option<f32>,
+    pub hash: u64,
+}
+
+fn hash_spans<T: Hash>(value: &T) -> u64 {
+    use std::collections::hash_map::DefaultHasher;
+    let mut hasher = DefaultHasher::new();
+    value.hash(&mut hasher);
+    hasher.finish()
+}
+
 impl Text {
     pub fn new(spans: Vec<Span>, width: Option<f32>, align: Align, cursor: Option<Cursor>) -> Self {
-        Text{spans, width, align, cursor}
+        Text{cached: Arc::new(Mutex::new(None)), spans, width, align, cursor}
+    }
+
+    pub fn size(&self, font_system: &mut impl AsMut<FontAtlas>) -> (f32, f32) {
+       Self::buffer_size(&self.get_buffer(font_system.as_mut(), 0), &self.spans)
+    }
+
+    pub fn set_color(&mut self, color: Color) {
+        self.spans.iter_mut().for_each(|s| s.color = color);
+    }
+
+    pub fn width(mut self, width: Option<f32>) -> Self {self.width = width; self}
+
+    fn get_buffer(&self, font_system: &mut impl AsMut<FontSystem>, z_index: usize) -> Buffer {
+        let font_system = font_system.as_mut();
+        let hash = hash_spans(&self.spans);
+        
+        let needs_rebuild = match &*self.cached.lock().unwrap() {
+            Some(cached) => cached.z_index != z_index || cached.width != self.width || cached.hash != hash,
+            None => true,
+        };
+
+        if needs_rebuild {
+            let default_attrs = self.spans.first().expect("Text must have at least one span even if its empty").into_inner(0).1;
+            let metrics = Metrics::from(default_attrs.metrics_opt.unwrap());
+            let mut buffer = Buffer::new(font_system, metrics);
+            buffer.set_wrap(font_system, Wrap::WordOrGlyph);
+            buffer.set_size(font_system, self.width.map(|w| 1.0+w), Some(f32::INFINITY));
+            let rich_text = self.spans.iter().map(|s| s.into_inner(z_index));
+            buffer.set_rich_text(font_system, rich_text, &default_attrs, Shaping::Advanced, Some(self.align));
+            *self.cached.lock().unwrap() = Some(CachedBuffer{buffer, z_index, width: self.width, hash});
+        }
+
+        self.cached.lock().unwrap().as_ref().unwrap().buffer.clone()
+    }
+
+    fn buffer_size(buffer: &Buffer, spans: &[Span]) -> (f32, f32) {
+        let new_line = spans.iter().rev().find_map(|s| (!s.text.is_empty()).then(||
+            (s.text.get(s.text.len()-1..) == Some("\n")).then_some(s.line_height)
+        )).flatten().unwrap_or_default();
+        
+        let (w, h) = buffer.layout_runs().fold((0.0f32, 0.0f32), |(max_w, total_h), run| {
+            let w = run.line_w;
+            let h = run.line_height;
+            (max_w.max(w), total_h + h)
+        });
+
+        (w, h+new_line)
     }
 
     pub fn set_cursor(&mut self, font_system: &mut impl AsMut<FontAtlas>, pos: (f32, f32)) {
@@ -60,43 +134,6 @@ impl Text {
             };
         }
         None
-    }
-
-    pub fn size(&self, font_system: &mut impl AsMut<FontAtlas>) -> (f32, f32) {
-       Self::buffer_size(&self.get_buffer(font_system.as_mut(), 0), &self.spans)
-    }
-
-    pub fn set_color(&mut self, color: Color) {
-        self.spans.iter_mut().for_each(|s| s.color = color);
-    }
-
-    pub fn width(mut self, width: Option<f32>) -> Self {self.width = width; self}
-
-    fn get_buffer(&self, font_system: &mut impl AsMut<FontSystem>, z_index: usize) -> Buffer {
-        let default_attrs = self.spans.first().expect("Text must have at least one span even if its empty").into_inner(0).1;
-        let metrics = Metrics::from(default_attrs.metrics_opt.unwrap());
-        let mut buffer = Buffer::new(font_system.as_mut(), metrics);
-        buffer.set_wrap(font_system.as_mut(), Wrap::WordOrGlyph);
-        buffer.set_size(font_system.as_mut(), self.width.map(|w| 1.0+w), Some(f32::INFINITY));
-        buffer.set_rich_text(
-            font_system.as_mut(), self.spans.iter().map(|s| s.into_inner(z_index)), 
-            &default_attrs, Shaping::Advanced, Some(self.align)
-        );
-        buffer
-    }
-
-    fn buffer_size(buffer: &Buffer, spans: &[Span]) -> (f32, f32) {
-        let new_line = spans.iter().rev().find_map(|s| (!s.text.is_empty()).then(||
-            (s.text.get(s.text.len()-1..) == Some("\n")).then_some(s.line_height)
-        )).flatten().unwrap_or_default();
-        
-        let (w, h) = buffer.layout_runs().fold((0.0f32, 0.0f32), |(max_w, total_h), run| {
-            let w = run.line_w;
-            let h = run.line_height;
-            (max_w.max(w), total_h + h)
-        });
-
-        (w, h+new_line)
     }
 }
 
