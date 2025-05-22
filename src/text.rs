@@ -20,8 +20,8 @@ pub struct Span{
 }
 
 impl Span {
-    pub fn new(text: &str, font_size: f32, line_height: f32, font: Font, color: Color) -> Self {
-        Span{text: text.to_string(), font_size, line_height, font, color}
+    pub fn new(text: String, font_size: f32, line_height: f32, font: Font, color: Color) -> Self {
+        Span{text, font_size, line_height, font, color}
     }
     pub fn into_inner(&self, z_index: usize) -> (&str, Attrs<'static>) {
         let color = glyphon::cosmic_text::Color::rgba(self.color.0, self.color.1, self.color.2, self.color.3);
