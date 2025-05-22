@@ -2,8 +2,7 @@ use glyphon::{Resolution, SwashCache, FontSystem, TextBounds, TextAtlas, Viewpor
 use wgpu::{DepthStencilState, MultisampleState, TextureFormat, RenderPass, Device, Queue};
 use glyphon::fontdb::{Database, Source, ID};
 
-use std::hash::{Hash, Hasher};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::collections::HashMap;
 
 use super::{Area, Color};
@@ -20,16 +19,6 @@ pub struct Span{
     pub color: Color
 }
 
-impl Hash for Span {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.text.hash(state);
-        self.font_size.to_bits().hash(state);    // <-- use to_bits for floats
-        self.line_height.to_bits().hash(state);
-        self.font.hash(state);
-        self.color.hash(state);
-    }
-}
-
 impl Span {
     pub fn new(text: &str, font_size: f32, line_height: f32, font: Font, color: Color) -> Self {
         Span{text: text.to_string(), font_size, line_height, font, color}
@@ -43,31 +32,16 @@ impl Span {
 
 #[derive(Debug, Clone)]
 pub struct Text{
-    pub cached: Arc<Mutex<Option<CachedBuffer>>>,
     pub spans: Vec<Span>,
     pub width: Option<f32>,
     pub align: Align,
     pub cursor: Option<Cursor>,
-}
-
-#[derive(Clone, Debug)]
-pub struct CachedBuffer {
-    pub buffer: Buffer,
-    pub z_index: usize,
-    pub width: Option<f32>,
-    pub hash: u64,
-}
-
-fn hash_spans<T: Hash>(value: &T) -> u64 {
-    use std::collections::hash_map::DefaultHasher;
-    let mut hasher = DefaultHasher::new();
-    value.hash(&mut hasher);
-    hasher.finish()
+    // pub max_lines: Option<usize>,
 }
 
 impl Text {
     pub fn new(spans: Vec<Span>, width: Option<f32>, align: Align, cursor: Option<Cursor>) -> Self {
-        Text{cached: Arc::new(Mutex::new(None)), spans, width, align, cursor}
+        Text{spans, width, align, cursor}
     }
 
     pub fn size(&self, font_system: &mut impl AsMut<FontAtlas>) -> (f32, f32) {
@@ -80,27 +54,31 @@ impl Text {
 
     pub fn width(mut self, width: Option<f32>) -> Self {self.width = width; self}
 
-    fn get_buffer(&self, font_system: &mut impl AsMut<FontSystem>, z_index: usize) -> Buffer {
+    fn get_buffer(&self, font_system: &mut impl AsMut<FontSystem>, z_index: usize) -> Buffer {  
+        let default_attrs = self.spans.first().expect("Text must have at least one span even if its empty").into_inner(0).1;
+        let metrics = Metrics::from(default_attrs.metrics_opt.unwrap());      
         let font_system = font_system.as_mut();
-        let hash = hash_spans(&self.spans);
-        
-        let needs_rebuild = match &*self.cached.lock().unwrap() {
-            Some(cached) => cached.z_index != z_index || cached.width != self.width || cached.hash != hash,
-            None => true,
-        };
+        let mut buffer = Buffer::new(font_system, metrics);
+        buffer.set_wrap(font_system, Wrap::WordOrGlyph);
+        buffer.set_size(font_system, self.width.map(|w| 1.0+w), Some(f32::INFINITY));
 
-        if needs_rebuild {
-            let default_attrs = self.spans.first().expect("Text must have at least one span even if its empty").into_inner(0).1;
-            let metrics = Metrics::from(default_attrs.metrics_opt.unwrap());
-            let mut buffer = Buffer::new(font_system, metrics);
-            buffer.set_wrap(font_system, Wrap::WordOrGlyph);
-            buffer.set_size(font_system, self.width.map(|w| 1.0+w), Some(f32::INFINITY));
-            let rich_text = self.spans.iter().map(|s| s.into_inner(z_index));
-            buffer.set_rich_text(font_system, rich_text, &default_attrs, Shaping::Advanced, Some(self.align));
-            *self.cached.lock().unwrap() = Some(CachedBuffer{buffer, z_index, width: self.width, hash});
-        }
+        let rich_text = self.spans.iter().map(|s| s.into_inner(z_index));
+        buffer.set_rich_text(font_system, rich_text, &default_attrs, Shaping::Advanced, Some(self.align));
 
-        self.cached.lock().unwrap().as_ref().unwrap().buffer.clone()
+        // // add check for only text with a single span
+        // if let Some(max) = self.max_lines {
+        //     let max_glyphs: usize = buffer.layout_runs().take(max).map(|run| run.glyphs.len()).sum();
+        //     let mut span = self.spans[0].clone();
+        //     let mut new = span.text.clone();
+        //     new.truncate(new.len() - max_glyphs);
+        //     new.push_str("...");
+
+        //     let new_span = vec![Span{text: new, font_size: span.font_size, line_height: span.line_height, font: span.font, color: span.color}];
+        //     let rich_text = new_span.iter().map(|s| s.into_inner(z_index));
+        //     buffer.set_rich_text(font_system, rich_text, &default_attrs, Shaping::Advanced, Some(self.align));
+        // }
+
+        buffer
     }
 
     fn buffer_size(buffer: &Buffer, spans: &[Span]) -> (f32, f32) {
