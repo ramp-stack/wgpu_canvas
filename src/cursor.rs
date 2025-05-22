@@ -54,8 +54,8 @@ impl Cursor {
         for (i, run) in buffer.layout_runs().enumerate() {
             line_h = run.line_height;
             if i == self.line {
-                for glyph in run.glyphs.iter() {
-                    if glyph.start <= self.index && self.index < glyph.end {
+                for (a, glyph) in run.glyphs.iter().enumerate() {
+                    if self.index == a {
                         self.position = Some((x_pos, line_h*(self.line+1) as f32));
                         return;
                     }
@@ -74,17 +74,19 @@ impl Cursor {
         if let Some((_, run)) = runs.find(|(i, _)| *i == self.line) {
             let line_end = run.glyphs.last().map(|g| g.end).unwrap_or(0);
             if self.index <= line_end {
+                self.affinity = Affinity::After;
                 match self.index {
                     0 => self.index = 1,
-                    1 => self.index = 3,
-                    _ => self.index = self.index * 2 - 1
+                    _ => self.index += 2
                 }
+                self.position(buffer);
             } else if let Some((next_line, next_run)) = runs.find(|(i, _)| *i == self.line + 1) {
                 self.line = next_line;
                 self.index = next_run.glyphs.last().map(|g| g.end).unwrap_or(0);
+                self.position(buffer);
+
             }
         }
-        self.position(buffer);
     }
 
     pub fn move_left(&mut self, buffer: &Buffer) {
@@ -93,7 +95,7 @@ impl Cursor {
             if i == self.line {
                 match run.glyphs.is_empty() && self.line != 0 {
                     true => self.line -= 1,
-                    false => self.index -= 2
+                    false => self.index = self.index.saturating_sub(2)
                 }
             }
         });
@@ -102,7 +104,8 @@ impl Cursor {
 
     pub fn move_newline(&mut self, buffer: &Buffer) {
         self.line += 1;
-        self.index = 0;
+        self.index = 1;
+        self.affinity = Affinity::After;
         self.position(buffer);
     }
 
