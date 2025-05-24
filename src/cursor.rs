@@ -1,5 +1,5 @@
 use glyphon::cosmic_text::Cursor as CosmicCursor;
-use glyphon::{Affinity, Buffer, LayoutGlyph};
+use glyphon::{Affinity, Buffer};
 
 #[derive(Debug, Clone, Copy)]
 pub enum CursorAction {
@@ -36,16 +36,11 @@ impl Cursor {
             match line_idx < self.line {
                 true => run.glyphs.to_vec(),
                 false if line_idx == self.line => {
-                    run.glyphs
-                        .iter()
-                        .enumerate()
-                        .take_while(|(i, _)| *i < self.index)
-                        .map(|(_, glyph)| glyph.clone())
-                        .collect::<Vec<glyphon::LayoutGlyph>>()
-                },                
+                    run.glyphs.iter().take_while(|glyph| glyph.end <= self.index).cloned().collect()
+                },
                 false => Vec::new()
             }
-        }).collect::<Vec<LayoutGlyph>>().len() + self.line
+        }).count() + self.line
     }
 
     pub fn position(&mut self, buffer: &Buffer) {
@@ -54,8 +49,8 @@ impl Cursor {
         for (i, run) in buffer.layout_runs().enumerate() {
             line_h = run.line_height;
             if i == self.line {
-                for (a, glyph) in run.glyphs.iter().enumerate() {
-                    if self.index == a {
+                for glyph in run.glyphs {
+                    if glyph.start <= self.index && self.index < glyph.end {
                         self.position = Some((x_pos, line_h*(self.line+1) as f32));
                         return;
                     }
@@ -73,39 +68,47 @@ impl Cursor {
         let mut runs = buffer.layout_runs().enumerate();
         if let Some((_, run)) = runs.find(|(i, _)| *i == self.line) {
             let line_end = run.glyphs.last().map(|g| g.end).unwrap_or(0);
-            if self.index <= line_end {
-                self.affinity = Affinity::After;
-                match self.index {
-                    0 => self.index = 1,
-                    _ => self.index += 2
-                }
-                self.position(buffer);
+            if self.index < line_end {
+                self.index += 1;
             } else if let Some((next_line, next_run)) = runs.find(|(i, _)| *i == self.line + 1) {
                 self.line = next_line;
                 self.index = next_run.glyphs.last().map(|g| g.end).unwrap_or(0);
-                self.position(buffer);
-
             }
         }
+        self.position(buffer);
     }
 
     pub fn move_left(&mut self, buffer: &Buffer) {
-        self.line = self.line.min(buffer.layout_runs().collect::<Vec<_>>().len()-1);
-        buffer.layout_runs().enumerate().for_each(|(i, run)| {
+        let total_lines = buffer.layout_runs().collect::<Vec<_>>().len();
+        if self.line >= total_lines {
+            self.line = total_lines.saturating_sub(1);
+            self.index = buffer.layout_runs().nth(self.line).map_or(0, |r| r.glyphs.len());
+            return;
+        }
+
+        for (i, run) in buffer.layout_runs().enumerate() {
             if i == self.line {
-                match run.glyphs.is_empty() && self.line != 0 {
-                    true => self.line -= 1,
-                    false => self.index = self.index.saturating_sub(2)
+                if self.index < 1 {
+                    if self.line > 0 {
+                        let prev_run = buffer.layout_runs().nth(self.line - 1).unwrap();
+                        self.line -= 1;
+                        if prev_run.glyphs.len() > 0 {
+                            self.index = prev_run.glyphs.len();
+                        }
+                    }
+                } else {
+                    self.index -= 1;
                 }
+                break;
             }
-        });
+        }
+        
         self.position(buffer);
     }
 
     pub fn move_newline(&mut self, buffer: &Buffer) {
         self.line += 1;
-        self.index = 1;
-        self.affinity = Affinity::After;
+        self.index = 0;
         self.position(buffer);
     }
 
@@ -197,8 +200,6 @@ impl Cursor {
                 new_cursor_opt = Some(new_cursor);
             }
         };
-
-        println!(" NEW CURSOR {:?} ", new_cursor_opt);
 
         new_cursor_opt
     }
