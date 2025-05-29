@@ -86,7 +86,7 @@ impl Cursor {
             return;
         }
 
-        for (i, run) in buffer.layout_runs().enumerate() {
+        for (i, _run) in buffer.layout_runs().enumerate() {
             if i == self.line {
                 if self.index < 1 {
                     if self.line > 0 {

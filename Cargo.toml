@@ -16,7 +16,7 @@ hex = "0.4.3"
 wgpu_dyn_buffer = "3.0.0"
 bytemuck = "1.21.0"
 #glyphon = "0.9.0"
-glyphon = {path="../glyphon"}
+glyphon = {path="../ramp-glyphon"}
 image = {package="image", version="0.25.5"}
 fast_image_resize = {version="5.1.2", features=["image"]}
 unicode-segmentation = "1.12.0"
