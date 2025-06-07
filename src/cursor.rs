@@ -1,5 +1,5 @@
-use glyphon::cosmic_text::Cursor as CosmicCursor;
-use glyphon::{Affinity, Buffer};
+use ramp_glyphon::ramp_text::Cursor as CosmicCursor;
+use ramp_glyphon::{Affinity, Buffer};
 
 #[derive(Debug, Clone, Copy)]
 pub enum CursorAction {
@@ -92,7 +92,7 @@ impl Cursor {
                     if self.line > 0 {
                         let prev_run = buffer.layout_runs().nth(self.line - 1).unwrap();
                         self.line -= 1;
-                        if prev_run.glyphs.len() > 0 {
+                        if !prev_run.glyphs.is_empty() {
                             self.index = prev_run.glyphs.len();
                         }
                     }

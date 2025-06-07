@@ -1,13 +1,13 @@
-use glyphon::{Resolution, SwashCache, FontSystem, TextBounds, TextAtlas, Viewport, Metrics, Shaping, Buffer, Family, Cache, Attrs, Wrap};
+use ramp_glyphon::{Resolution, SwashCache, FontSystem, TextBounds, TextAtlas, Viewport, Metrics, Shaping, Buffer, Family, Cache, Attrs, Wrap};
 use wgpu::{DepthStencilState, MultisampleState, TextureFormat, RenderPass, Device, Queue};
-use glyphon::fontdb::{Database, Source, ID};
+use ramp_glyphon::fontdb::{Database, Source, ID};
 
 use std::sync::Arc;
 use std::collections::HashMap;
 
 use super::{Area, Color};
 pub use crate::cursor::{Cursor, CursorAction};
-pub use glyphon::cosmic_text::{Align};
+pub use ramp_glyphon::ramp_text::{Align};
 
 
 #[derive(Debug, Clone)]
@@ -24,7 +24,7 @@ impl Span {
         Span{text, font_size, line_height, font, color}
     }
     pub fn into_inner(&self, z_index: usize) -> (&str, Attrs<'static>) {
-        let color = glyphon::cosmic_text::Color::rgba(self.color.0, self.color.1, self.color.2, self.color.3);
+        let color = ramp_glyphon::ramp_text::Color::rgba(self.color.0, self.color.1, self.color.2, self.color.3);
         let attrs = self.font.1.clone().color(color).metadata(z_index).metrics(Metrics::new(self.font_size, self.line_height));
         (&self.text, attrs)
     }
@@ -161,7 +161,7 @@ impl AsMut<FontSystem> for FontAtlas {
 }
 
 pub struct TextRenderer {
-    text_renderer: glyphon::TextRenderer,
+    text_renderer: ramp_glyphon::TextRenderer,
     swash_cache: SwashCache,
     text_atlas: TextAtlas,
     viewport: Viewport,
@@ -177,7 +177,7 @@ impl TextRenderer {
     ) -> Self {
         let cache = Cache::new(device);
         let mut text_atlas = TextAtlas::new(device, queue, &cache, *texture_format);
-        let text_renderer = glyphon::TextRenderer::new(&mut text_atlas, device, multisample, depth_stencil);
+        let text_renderer = ramp_glyphon::TextRenderer::new(&mut text_atlas, device, multisample, depth_stencil);
 
         TextRenderer{
             text_renderer,
@@ -208,7 +208,7 @@ impl TextRenderer {
         }).collect::<Vec<_>>();
         let text_areas = text_areas.iter().map(|(a, b)| {
             let bounds = a.bounds(width, height);
-            glyphon::TextArea{
+            ramp_glyphon::TextArea{
                 buffer: b,
                 left: a.0.0,
                 top: a.0.1,
@@ -219,7 +219,7 @@ impl TextRenderer {
                     right: (bounds.0 + bounds.2).ceil() as i32,
                     bottom: (bounds.1 + bounds.3).ceil() as i32,
                 },
-                default_color: glyphon::Color::rgba(139, 0, 139, 255),
+                default_color: ramp_glyphon::Color::rgba(139, 0, 139, 255),
                 custom_glyphs: &[]
             }
         });
