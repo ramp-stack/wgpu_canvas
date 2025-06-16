@@ -53,6 +53,7 @@ pub struct Atlas {
 }
 
 impl Atlas {
+    // pub fn new() -> Self {Atlas{image: ImageAtlas::default(), text: TextAtlas::new()}}
     pub fn add_image(&mut self, raw: crate::image::RgbaImage) -> Image {self.image.add(raw)}
     pub fn add_font(&mut self, raw_font: &[u8]) -> Result<Font, &'static str> {self.text.add(raw_font)}
 }
