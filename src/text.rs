@@ -97,7 +97,7 @@ impl Text {
                 lines.push(current_line.take());
             } else {
                 let lm = atlas.line_metrics(&s.font);
-                let lh = s.line_height.unwrap_or_else(|| lm.new_line_size * s.font_size);
+                let lh = s.line_height.unwrap_or(lm.new_line_size * s.font_size);
                 let m = atlas.metrics(&s.font, c, s.font_size);
                 let aw = m.advance_width;
                 let m = m.bounds;
