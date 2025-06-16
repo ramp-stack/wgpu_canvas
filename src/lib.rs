@@ -4,17 +4,16 @@ mod shape;
 mod color;
 mod image;
 mod text;
-mod cursor;
+//mod cursor;
 
 use color::ColorRenderer;
 use image::ImageRenderer;
-use text::TextRenderer;
 
 pub use color::Color;
 pub use image::{ImageAtlas, Image};
-pub use text::{FontAtlas, Font, Text, Span, Align, Cursor, CursorAction};
+pub use text::{TextAtlas, Font, Text, Span, Align, Cursor};
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Area(pub (f32, f32), pub Option<(f32, f32, f32, f32)>);
 
 impl Area {
@@ -23,7 +22,7 @@ impl Area {
     }
 }
 
-#[derive(Clone, Debug, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Shape {
     Ellipse(f32, (f32, f32)),
     Rectangle(f32, (f32, f32)),
@@ -40,32 +39,43 @@ impl Shape {
     }
 }
 
-#[derive(Clone, Debug)]
-pub enum CanvasItem {
+#[derive(Debug, Clone, PartialEq)]
+pub enum Item {
     Shape(Shape, Color),
     Image(Shape, Image, Option<Color>),
     Text(Text),
 }
 
-pub struct CanvasRenderer {
-    color_renderer: ColorRenderer,
-    image_renderer: ImageRenderer,
-    text_renderer: TextRenderer
+#[derive(Default)]
+pub struct Atlas {
+    pub(crate) image: ImageAtlas,
+    pub(crate) text: TextAtlas,
 }
 
-impl CanvasRenderer {
+impl Atlas {
+    pub fn add_image(&mut self, raw: crate::image::RgbaImage) -> Image {self.image.add(raw)}
+    pub fn add_font(&mut self, raw_font: &[u8]) -> Result<Font, &'static str> {self.text.add(raw_font)}
+}
+
+impl AsMut<TextAtlas> for Atlas {fn as_mut(&mut self) -> &mut TextAtlas {&mut self.text}}
+impl AsMut<ImageAtlas> for Atlas {fn as_mut(&mut self) -> &mut ImageAtlas {&mut self.image}}
+
+pub struct Renderer {
+    color_renderer: ColorRenderer,
+    image_renderer: ImageRenderer,
+}
+
+impl Renderer {
     /// Create all unchanging resources here.
     pub fn new(
-        queue: &Queue,
         device: &Device,
         texture_format: &TextureFormat,
         multisample: MultisampleState,
         depth_stencil: Option<DepthStencilState>,
     ) -> Self {
-        CanvasRenderer{
+        Renderer{
             color_renderer: ColorRenderer::new(device, texture_format, multisample, depth_stencil.clone()),
             image_renderer: ImageRenderer::new(device, texture_format, multisample, depth_stencil.clone()),
-            text_renderer: TextRenderer::new(device, queue, texture_format, multisample, depth_stencil),
         }
     }
 
@@ -81,29 +91,28 @@ impl CanvasRenderer {
         queue: &Queue,
         width: f32,
         height: f32,
-        image_atlas: &mut ImageAtlas,
-        font_atlas: &mut FontAtlas,
-        items: Vec<(Area, CanvasItem)>,
+        atlas: &mut Atlas,
+        items: Vec<(Area, Item)>,
     ) {
-        let (colors, images, texts) = items.into_iter().enumerate().fold((vec![], vec![], vec![]), |mut a, (i, (area, item))| {
+        let (colors, mut images, texts) = items.into_iter().enumerate().fold((vec![], vec![], vec![]), |mut a, (i, (area, item))| {
             let z = i as u16;
             match item {
-                CanvasItem::Shape(shape, color) => a.0.push((z, area, shape, color)),
-                CanvasItem::Image(shape, image, color) => a.1.push((z, area, shape, image, color)),
-                CanvasItem::Text(text) => a.2.push((z, area, text)),
+                Item::Shape(shape, color) => a.0.push((z, area, shape, color)),
+                Item::Image(shape, image, color) => a.1.push((z, area, shape, image, color)),
+                Item::Text(text) => a.2.push((z, area, text)),
             }
             a
         });
 
+        images.extend(atlas.text.prepare_images(&mut atlas.image, texts));
+
         self.color_renderer.prepare(device, queue, width, height, colors);
-        self.image_renderer.prepare(device, queue, width, height, image_atlas, images);
-        self.text_renderer.prepare(device, queue, width, height, font_atlas, texts);
+        self.image_renderer.prepare(device, queue, width, height, &mut atlas.image, images);
     }
 
     /// Render using caller provided render pass.
     pub fn render<'a>(&'a self, render_pass: &mut RenderPass<'a>) {
         self.color_renderer.render(render_pass);
         self.image_renderer.render(render_pass);
-        self.text_renderer.render(render_pass);
     }
 }

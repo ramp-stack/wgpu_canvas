@@ -1,7 +1,7 @@
 use ramp_glyphon::ramp_text::Cursor as CosmicCursor;
 use ramp_glyphon::{Affinity, Buffer};
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum CursorAction {
     GetPosition,
     GetIndex,
@@ -10,7 +10,7 @@ pub enum CursorAction {
     MoveNewline,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Cursor {
     pub line: usize, // Layout line number
     pub index: usize, // Glyph index

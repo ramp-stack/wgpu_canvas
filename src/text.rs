@@ -1,242 +1,227 @@
-use ramp_glyphon::{Resolution, SwashCache, FontSystem, TextBounds, TextAtlas, Viewport, Metrics, Shaping, Buffer, Family, Cache, Attrs, Wrap};
-use wgpu::{DepthStencilState, MultisampleState, TextureFormat, RenderPass, Device, Queue};
-use ramp_glyphon::fontdb::{Database, Source, ID};
+use fontdue::{FontSettings, Metrics, LineMetrics};
 
-use std::sync::Arc;
 use std::collections::HashMap;
+use std::hash::{DefaultHasher, Hasher, Hash};
+use std::sync::Arc;
+use std::cell::RefCell;
+use std::rc::Rc;
 
-use super::{Area, Color};
-pub use crate::cursor::{Cursor, CursorAction};
-pub use ramp_glyphon::ramp_text::{Align};
+use super::{Area, Color, Image, Shape, ImageAtlas, Atlas};
 
+type SpanInfo = (u64, f32, Option<f32>, Font);
 
-#[derive(Debug, Clone)]
+pub type Cursor = usize;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Align {Left, Center, Right}
+
+#[derive(Debug, Clone, PartialEq)]
 pub struct Span{
     pub text: String, 
     pub font_size: f32,
-    pub line_height: f32,
+    pub line_height: Option<f32>,
     pub font: Font,
     pub color: Color
 }
 
 impl Span {
-    pub fn new(text: String, font_size: f32, line_height: f32, font: Font, color: Color) -> Self {
-        Span{text, font_size, line_height, font, color}
-    }
-    pub fn into_inner(&self, z_index: usize) -> (&str, Attrs<'static>) {
-        let color = ramp_glyphon::ramp_text::Color::rgba(self.color.0, self.color.1, self.color.2, self.color.3);
-        let attrs = self.font.1.clone().color(color).metadata(z_index).metrics(Metrics::new(self.font_size, self.line_height));
-        (&self.text, attrs)
+    pub fn new(text: &'static str, font_size: f32, line_height: Option<f32>, font: Font, color: Color) -> Self {
+        Span{text: text.to_string(), font_size, line_height, font, color}
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
+struct Character(char, (f32, f32, f32, f32), Font, Color);
+
+#[derive(Debug, Clone, PartialEq, Default)]
+struct Line(f32, f32, Vec<Character>);
+impl Line {
+    fn take(&mut self) -> Self {
+        let l = Line(self.0, self.1, self.2.drain(..).collect());
+        self.0 = 0.0;
+        self.1 = 0.0;
+        l
+    }
+}
+
+type Lines = (Vec<Line>, (Vec<SpanInfo>, Option<f32>), u64);
+
+#[derive(Debug, Clone, PartialEq)]
 pub struct Text{
     pub spans: Vec<Span>,
     pub width: Option<f32>,
     pub align: Align,
     pub cursor: Option<Cursor>,
-    // pub max_lines: Option<usize>,
+    pub scale: f32,
+    lines: Rc<RefCell<Lines>>,
 }
+
 
 impl Text {
+    fn hash_size(&self) -> (Vec<SpanInfo>, Option<f32>) {
+        (self.spans.iter().map(|s| {
+            let mut state = DefaultHasher::new();
+            s.text.hash(&mut state);
+            (state.finish(), s.font_size, s.line_height, s.font.clone())
+        }).collect::<Vec<_>>(),
+        self.width)
+    }
+    fn hash_rest(&self) -> u64 {
+        let mut state = DefaultHasher::new();
+        self.spans.iter().for_each(|s| s.color.hash(&mut state));
+        self.align.hash(&mut state);
+        state.finish()
+    }
+
     pub fn new(spans: Vec<Span>, width: Option<f32>, align: Align, cursor: Option<Cursor>) -> Self {
-        Text{spans, width, align, cursor}
+        Text{spans, width, align, cursor, scale: 1.0, lines: Rc::new(RefCell::new((Vec::new(), (Vec::new(), None), 0)))}
     }
 
-    pub fn size(&self, font_system: &mut impl AsMut<FontAtlas>) -> (f32, f32) {
-       Self::buffer_size(&self.get_buffer(font_system.as_mut(), 0), &self.spans)
-    }
-
-    pub fn set_color(&mut self, color: Color) {
-        self.spans.iter_mut().for_each(|s| s.color = color);
-    }
-
-    pub fn width(mut self, width: Option<f32>) -> Self {self.width = width; self}
-
-    fn get_buffer(&self, font_system: &mut impl AsMut<FontSystem>, z_index: usize) -> Buffer {  
-        let default_attrs = self.spans.first().expect("Text must have at least one span even if its empty").into_inner(0).1;
-        let metrics = Metrics::from(default_attrs.metrics_opt.unwrap());      
-        let font_system = font_system.as_mut();
-        let mut buffer = Buffer::new(font_system, metrics);
-        buffer.set_wrap(font_system, Wrap::WordOrGlyph);
-        buffer.set_size(font_system, self.width.map(|w| 1.0+w), Some(f32::INFINITY));
-
-        let rich_text = self.spans.iter().map(|s| s.into_inner(z_index));
-        buffer.set_rich_text(font_system, rich_text, &default_attrs, Shaping::Advanced, Some(self.align));
-
-        // // add check for only text with a single span
-        // if let Some(max) = self.max_lines {
-        //     let max_glyphs: usize = buffer.layout_runs().take(max).map(|run| run.glyphs.len()).sum();
-        //     let mut span = self.spans[0].clone();
-        //     let mut new = span.text.clone();
-        //     new.truncate(new.len() - max_glyphs);
-        //     new.push_str("...");
-
-        //     let new_span = vec![Span{text: new, font_size: span.font_size, line_height: span.line_height, font: span.font, color: span.color}];
-        //     let rich_text = new_span.iter().map(|s| s.into_inner(z_index));
-        //     buffer.set_rich_text(font_system, rich_text, &default_attrs, Shaping::Advanced, Some(self.align));
-        // }
-
-        buffer
-    }
-
-    fn buffer_size(buffer: &Buffer, spans: &[Span]) -> (f32, f32) {
-        let new_line = spans.iter().rev().find_map(|s| (!s.text.is_empty()).then(||
-            (s.text.get(s.text.len()-1..) == Some("\n")).then_some(s.line_height)
-        )).flatten().unwrap_or_default();
-        
-        let (w, h) = buffer.layout_runs().fold((0.0f32, 0.0f32), |(max_w, total_h), run| {
-            let w = run.line_w;
-            let h = run.line_height;
-            (max_w.max(w), total_h + h)
-        });
-
-        (w, h+new_line)
-    }
-
-    pub fn set_cursor(&mut self, font_system: &mut impl AsMut<FontAtlas>, pos: (f32, f32)) {
-        let buffer: Buffer = self.get_buffer(font_system.as_mut(), 0);
-        self.cursor = Cursor::new_from_click(&buffer, pos.0, pos.1);
-    }
-
-    pub fn cursor_action(&mut self, font_system: &mut impl AsMut<FontAtlas>, action: CursorAction) -> Option<(f32, f32)> {
-        let buffer: Buffer = self.get_buffer(font_system.as_mut(), 0);
-        if let Some(cursor) = &mut self.cursor {
-            return match action {
-                CursorAction::MoveRight => {cursor.move_right(&buffer); cursor.position },
-                CursorAction::MoveLeft => { cursor.move_left(&buffer); cursor.position },
-                CursorAction::MoveNewline => { cursor.move_newline(&buffer); cursor.position },
-                CursorAction::GetIndex => Some((cursor.get_index(&buffer) as f32, cursor.line as f32)),
-                CursorAction::GetPosition => { cursor.position(&buffer); cursor.position },
-            };
+    pub fn size(&self, mut ctx: impl AsMut<Atlas>) -> (f32, f32) {
+        let size_state = self.hash_size();
+        if size_state != self.lines.borrow().1 {
+            let lines = self.lines(&mut ctx.as_mut().text);
+            let rest_state = self.hash_rest();
+            *self.lines.borrow_mut() = (lines, size_state, rest_state);
         }
-        None
+        self.lines.borrow().0.iter().fold((0.0, 0.0), |(w, h), line| (w.max(line.0), h+line.1))
     }
-}
 
-pub type Font = Arc<(ID, Attrs<'static>)>;
+    //TODO: Include Alignment
+    fn lines(&self, atlas: &mut TextAtlas) -> Vec<Line> {
+        let mut lines = Vec::new();
+        let mut current_line = Line::default();
+        self.spans.iter().for_each(|s| s.text.chars().for_each(|c| {
+            if c == '\n' {
+                current_line.2.iter_mut().for_each(|ch| ch.1.1 += current_line.1);
+                lines.push(current_line.take());
+            } else {
+                let lh = s.line_height.unwrap_or_else(|| atlas.line_metrics(&s.font).new_line_size * s.font_size);
+                let m = atlas.metrics(&s.font, c, s.font_size);
+                let aw = m.advance_width;
+                let m = m.bounds;
+                if let Some(width) = self.width {
+                    if current_line.0+aw > width {
+                        current_line.2.iter_mut().for_each(|ch| ch.1.1 += current_line.1);
+                        lines.push(current_line.take());
+                    }
+                }
+                current_line.2.push(Character(
+                    c, (current_line.0 + m.xmin, lines.iter().fold(0.0, |h, l| h+l.1) - m.ymin - m.height, m.width, m.height), s.font.clone(), s.color
+                ));
+                current_line.0 += aw;
+                current_line.1 = current_line.1.max(lh);
 
-pub struct FontAtlas{
-    fonts: Option<HashMap<Arc<Vec<u8>>, Font>>,
-    font_system: FontSystem
-}
-
-impl FontAtlas {
-    pub fn add(&mut self, raw_font: &[u8]) -> Font {
-        let raw_font = Arc::new(raw_font.to_vec());
-        match self.fonts.as_mut().unwrap().get(&raw_font) {
-            Some(font) => font.clone(),
-            None => {
-                let database = self.font_system.db_mut();
-                let id = database.load_font_source(Source::Binary(raw_font.clone()))[0];
-                let face = database.face(id).unwrap();
-                let attrs = Attrs::new()
-                    .family(Family::<'static>::Name(face.families[0].0.clone().leak()))
-                    .stretch(face.stretch)
-                    .style(face.style)
-                    .weight(face.weight);
-                let font = Arc::new((id, attrs));
-                self.fonts.as_mut().unwrap().insert(raw_font, font.clone());
-                font
             }
+        }));
+        if !current_line.2.is_empty() {
+            current_line.2.iter_mut().for_each(|ch| ch.1.1 += current_line.1);
+            lines.push(current_line.take());
         }
+        lines
+    }
+    
+  //pub fn get_cursor(&self, pos: (f32, f32)) -> Cursor {
+
+  //}
+}
+
+pub type Font = Arc<u64>;
+//type Atlas = TexturePacker<'static, RgbaImage, char>;
+
+type MetricsMap = HashMap<(char, u32), Metrics>;
+type ImageMap = HashMap<char, Option<Image>>;
+
+//TODO: Add back atlas and combine all minor images into one large one
+#[derive(Default)]
+pub struct TextAtlas{
+    fonts: HashMap<Font, (
+        MetricsMap,
+        ImageMap,
+        LineMetrics,
+        fontdue::Font
+    )>,//(Atlas, ..
+}
+
+impl TextAtlas {
+    pub fn add(&mut self, raw_font: &[u8]) -> Result<Font, &'static str> {
+        let mut hasher = DefaultHasher::new();
+        raw_font.hash(&mut hasher);
+        let id = Arc::new(hasher.finish());
+
+        if !self.fonts.contains_key(&id) {
+            let font = fontdue::Font::from_bytes(raw_font, FontSettings{scale: 160.0, ..Default::default()})?;
+            self.fonts.insert(id.clone(), (
+              //TexturePacker::new_skyline(TexturePackerConfig{
+              //    texture_padding: 1, allow_rotation: false, trim: false, ..Default::default()
+              //}),
+                HashMap::new(),
+                HashMap::new(),
+                font.horizontal_line_metrics(1.0).expect("Not a Horizontal Font"),//Scale
+                font
+            ));
+        }
+        Ok(id)
     }
 
     fn trim(&mut self) {
-        let to_remove = self.fonts.as_ref().unwrap().iter().filter(|&(_, v)| (Arc::strong_count(v) > 1)).map(|(k, _)| k.clone()).collect::<Vec<_>>();
-        to_remove.into_iter().for_each(|k| {self.fonts.as_mut().unwrap().remove(&k);});
+        self.fonts = self.fonts.drain().filter(|(k, _)| (Arc::strong_count(k) > 1)).collect()
     }
-}
 
-impl Default for FontAtlas {fn default() -> Self {
-    FontAtlas{
-        fonts: Some(HashMap::new()),
-        font_system: FontSystem::new_with_locale_and_db("".to_string(), Database::new())
+    fn line_metrics(&self, font: &Font) -> LineMetrics {
+        self.fonts.get(font).expect("Font Unloaded").2
     }
-}}
 
-impl AsMut<FontSystem> for FontAtlas {
-    fn as_mut(&mut self) -> &mut FontSystem {&mut self.font_system}
-}
-
-pub struct TextRenderer {
-    text_renderer: ramp_glyphon::TextRenderer,
-    swash_cache: SwashCache,
-    text_atlas: TextAtlas,
-    viewport: Viewport,
-}
-
-impl TextRenderer {
-    pub fn new(
-        device: &Device,
-        queue: &Queue,
-        texture_format: &TextureFormat,
-        multisample: MultisampleState,
-        depth_stencil: Option<DepthStencilState>,
-    ) -> Self {
-        let cache = Cache::new(device);
-        let mut text_atlas = TextAtlas::new(device, queue, &cache, *texture_format);
-        let text_renderer = ramp_glyphon::TextRenderer::new(&mut text_atlas, device, multisample, depth_stencil);
-
-        TextRenderer{
-            text_renderer,
-            text_atlas,
-            viewport: Viewport::new(device, &cache),
-            swash_cache: SwashCache::new(),
+    fn metrics(&mut self, font: &Font, c: char, scale: f32) -> Metrics {
+        let (ms, _, _, f) = self.fonts.get_mut(font).expect("Font Unloaded");
+        let k = (c, (scale*1_000_000.0) as u32);//f32 cannot be saved in hash map
+        match ms.get(&k) {
+            Some(m) => *m,
+            None => {
+                let m = f.metrics(c, scale);//Scale
+                ms.insert(k, m);
+                m
+            }
         }
     }
 
-    #[allow(clippy::too_many_arguments)]
-    pub fn prepare(
-        &mut self,
-        device: &Device,
-        queue: &Queue,
-        width: f32,
-        height: f32,
-        font_atlas: &mut FontAtlas,
-        text_areas: Vec<(u16, Area, Text)>
-    ) {
-        font_atlas.trim();
-        self.text_atlas.trim();
-        self.viewport.update(queue, Resolution{width: width as u32, height: height as u32});
-        let text_areas = text_areas.into_iter().map(|(z, a, t)| {
-            let mut b = t.get_buffer(font_atlas, z as usize);
-            let width = Text::buffer_size(&b, &t.spans).0;
-            b.set_size(&mut font_atlas.font_system, Some(width), None);
-            (a, b)
-        }).collect::<Vec<_>>();
-        let text_areas = text_areas.iter().map(|(a, b)| {
-            let bounds = a.bounds(width, height);
-            ramp_glyphon::TextArea{
-                buffer: b,
-                left: a.0.0,
-                top: a.0.1,
-                scale: 1.0,
-                bounds: TextBounds {//Sisscor Rect
-                    left: bounds.0 as i32,
-                    top: bounds.1 as i32,
-                    right: (bounds.0 + bounds.2).ceil() as i32,
-                    bottom: (bounds.1 + bounds.3).ceil() as i32,
-                },
-                default_color: ramp_glyphon::Color::rgba(139, 0, 139, 255),
-                custom_glyphs: &[]
+    fn get_image(&mut self, image_atlas: &mut ImageAtlas, font: &Font, c: char, scale_factor: f32) -> Option<Image> {//Include Image Offset and crop from atlas
+        let (_, is, _, f) = self.fonts.get_mut(font).expect("Font Unloaded");
+        match is.get(&c) {
+            Some(i) => i.clone(),
+            None => {
+                //TODO: If scale factor changes need to re rasterize fonts
+                //TODO: Choose 3 font sizes that should be used for all rasterization if needed
+                //TODO: Or use one size that is the largest neccessary including max scale_factor 
+                let (m, b) = f.rasterize(c, 160.0*scale_factor);
+                let b: Vec<_> = b.iter().flat_map(|a| [0, 0, 0, *a]).collect();
+                let image = b.iter().any(|a| *a != 0).then(|| {
+                    let img = image::RgbaImage::from_raw(m.width as u32, m.height as u32, b).unwrap();
+                    image_atlas.add(img)
+                });
+                //atlas.pack_own(*ch, img).unwrap();
+                is.insert(c, image.clone());
+                image
             }
-        });
-
-        self.text_renderer.prepare_with_depth(
-            device,
-            queue,
-            &mut font_atlas.font_system,
-            &mut self.text_atlas,
-            &self.viewport,
-            text_areas,
-            &mut self.swash_cache,
-            |z: usize| ((z as u16) as f32) / u16::MAX as f32
-        ).unwrap();
+        }
     }
 
-    pub fn render<'a>(&'a self, render_pass: &mut RenderPass<'a>) {
-        self.text_renderer.render(&self.text_atlas, &self.viewport, render_pass).unwrap();
-    }
+    pub(crate) fn prepare_images(&mut self, image_atlas: &mut ImageAtlas, text_areas: Vec<(u16, Area, Text)>) -> Vec<(u16, Area, Shape, Image, Option<Color>)> {
+        self.trim();
+        text_areas.into_iter().flat_map(|(z, a, t)| {
+            let size_state = t.hash_size();
+            let rest_state = t.hash_rest();
+            if size_state != t.lines.borrow().1 || rest_state != t.lines.borrow().2 {
+                t.lines(self);
+            }
+            let scale = t.scale;
+            t.lines.borrow().0.iter().flat_map(|line| line.2.iter().flat_map(|ch| {
+                self.get_image(image_atlas, &ch.2, ch.0, scale).map(|img| {
+                    let a = Area((a.0.0+(ch.1.0*scale), a.0.1+(ch.1.1*scale)), a.1);
+                    let shape = Shape::Rectangle(0.0, (ch.1.2*scale, ch.1.3*scale));
+                    (z, a, shape, img, Some(ch.3))
+                })
+            }).collect::<Vec<_>>()).collect::<Vec<_>>()
+      }).collect()
+    } 
 }
