@@ -73,8 +73,8 @@ impl Text {
         state.finish()
     }
 
-    pub fn new(spans: Vec<Span>, width: Option<f32>, align: Align, cursor: Option<Cursor>) -> Self {
-        Text{spans, width, align, cursor, scale: 1.0, lines: Rc::new(RefCell::new((Vec::new(), (Vec::new(), None), 0)))}
+    pub fn new(spans: Vec<Span>, width: Option<f32>, align: Align) -> Self {
+        Text{spans, width, align, cursor: None, scale: 1.0, lines: Rc::new(RefCell::new((Vec::new(), (Vec::new(), None), 0)))}
     }
 
     pub fn size(&self, mut ctx: impl AsMut<Atlas>) -> (f32, f32) {
@@ -87,45 +87,102 @@ impl Text {
         self.lines.borrow().0.iter().fold((0.0, 0.0), |(w, h), line| (w.max(line.0), h+line.1))
     }
 
-    //TODO: Include Alignment
+    pub fn cursor_position(&self) -> (f32, f32) {
+        let ls = &self.lines.borrow().0;
+        let mut ci = 0;
+        ls.iter().enumerate().find_map(|(i, l)| l.2.iter().find_map(|ch| {
+            match ci == self.cursor.unwrap() {
+                true => Some((ch.1.0 + ch.1.2, i as f32 * ch.4)),
+                false => {ci += 1; None}
+            }
+        })).or_else(|| ls.last().and_then(|l| {
+            l.2.last().map(|ch| (ch.1.0 + ch.1.2, (ls.len().saturating_sub(1) as f32) * ch.4))
+        })).unwrap_or((0.0, 0.0))
+    }
+
     fn lines(&self, atlas: &mut TextAtlas) -> Vec<Line> {
         let mut lines = Vec::new();
         let mut current_line = Line::default();
-        self.spans.iter().for_each(|s| s.text.chars().for_each(|c| {
-            if c == '\n' {
+        self.spans.iter().for_each(|s| {
+            let lm = atlas.line_metrics(&s.font);
+            let lh = s.line_height.unwrap_or_else(|| lm.new_line_size * s.font_size);
+
+            s.text.split('\n').into_iter().for_each(|raw_line| {
+                raw_line.split_inclusive(|c: char| c.is_whitespace()).into_iter().for_each(|word| {
+                    let mut word_width = 0.0;
+
+                    let glyphs: Vec<_> = word.chars().map(|c| {
+                        let m = atlas.metrics(&s.font, c, s.font_size);
+                        let aw = m.advance_width;
+                        word_width += aw;
+                        (c, (m.bounds.xmin, m.bounds.ymin, m.bounds.width, m.bounds.height), aw)
+                    }).collect();
+
+                    if let Some(width) = self.width {
+                        if current_line.0 + word_width > width && !current_line.2.is_empty() {
+                            current_line.2.iter_mut().for_each(|ch| ch.1.1 += current_line.1);
+                            lines.push(current_line.take());
+                        }
+                    }
+
+                    glyphs.into_iter().for_each(|(c, (xmin, ymin, width, height), aw)| {
+                        current_line.2.push(Character(c,
+                            (current_line.0 + xmin,(lines.iter().fold(0.0, |h, l| h + l.1) - ymin - height) + (lm.descent * s.font_size), width, height),
+                            s.font.clone(), s.color, s.font_size,
+                        ));
+                        current_line.0 += aw;
+                        current_line.1 = current_line.1.max(lh);
+                    });
+                });
+
                 current_line.2.iter_mut().for_each(|ch| ch.1.1 += current_line.1);
                 lines.push(current_line.take());
-            } else {
-                let lm = atlas.line_metrics(&s.font);
-                let lh = s.line_height.unwrap_or_else(|| lm.new_line_size * s.font_size);
-                let m = atlas.metrics(&s.font, c, s.font_size);
-                let aw = m.advance_width;
-                let m = m.bounds;
-                if let Some(width) = self.width {
-                    if current_line.0+aw > width {
-                        current_line.2.iter_mut().for_each(|ch| ch.1.1 += current_line.1);
-                        lines.push(current_line.take());
-                    }
-                }
-                current_line.2.push(Character(
-                    c, (current_line.0 + m.xmin, ((lines.iter().fold(0.0, |h, l| h+l.1) - m.ymin) - m.height) + (lm.descent * s.font_size), m.width, m.height), s.font.clone(), s.color, s.font_size
-                ));
-                current_line.0 += aw;
-                current_line.1 = current_line.1.max(lh);
+            })
+        });
 
-            }
-        }));
         if !current_line.2.is_empty() {
             current_line.2.iter_mut().for_each(|ch| ch.1.1 += current_line.1);
             lines.push(current_line.take());
         }
+
+        lines.iter_mut().for_each(|line| {
+            let offset_x = match self.align {
+                Align::Left => 0.0,
+                Align::Center => self.width.map_or(0.0, |w| (w - line.0) / 2.0),
+                Align::Right => self.width.map_or(0.0, |w| w - line.0),
+            };
+            line.2.iter_mut().for_each(|ch| ch.1.0 += offset_x);
+            line.0 += offset_x;
+        });
+        
         lines
     }
-    
-  //pub fn get_cursor(&self, pos: (f32, f32)) -> Cursor {
-
-  //}
 }
+
+// self.spans.iter().for_each(|s| s.text.chars().for_each(|c| {
+//     if c == '\n' {
+//         current_line.2.iter_mut().for_each(|ch| ch.1.1 += current_line.1);
+//         lines.push(current_line.take());
+//     } else {
+//         let lm = atlas.line_metrics(&s.font);
+//         let lh = s.line_height.unwrap_or_else(|| lm.new_line_size * s.font_size);
+//         let m = atlas.metrics(&s.font, c, s.font_size);
+//         let aw = m.advance_width;
+//         let m = m.bounds;
+//         if let Some(width) = self.width {
+//             if current_line.0+aw > width {
+//                 current_line.2.iter_mut().for_each(|ch| ch.1.1 += current_line.1);
+//                 lines.push(current_line.take());
+//             }
+//         }
+//         current_line.2.push(Character(
+//             c, (current_line.0 + m.xmin, ((lines.iter().fold(0.0, |h, l| h+l.1) - m.ymin) - m.height) + (lm.descent * s.font_size), m.width, m.height), s.font.clone(), s.color, s.font_size
+//         ));
+//         current_line.0 += aw;
+//         current_line.1 = current_line.1.max(lh);
+
+//     }
+// }));
 
 pub type Font = Arc<u64>;
 //type Atlas = TexturePacker<'static, RgbaImage, char>;
