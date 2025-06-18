@@ -31,7 +31,7 @@ impl Span {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-struct Character(char, (f32, f32, f32, f32), Font, Color, f32);
+struct Character(char, (f32, f32, f32, f32), Font, Color, f32, f32);
 
 #[derive(Debug, Clone, PartialEq, Default)]
 struct Line(f32, f32, Vec<Character>);
@@ -90,15 +90,54 @@ impl Text {
     pub fn cursor_position(&self) -> (f32, f32) {
         let ls = &self.lines.borrow().0;
         let mut ci = 0;
-        ls.iter().enumerate().find_map(|(i, l)| l.2.iter().find_map(|ch| {
-            match ci == self.cursor.unwrap() {
-                true => Some((ch.1.0 + ch.1.2, i as f32 * ch.4)),
-                false => {ci += 1; None}
-            }
-        })).or_else(|| ls.last().and_then(|l| {
-            l.2.last().map(|ch| (ch.1.0 + ch.1.2, (ls.len().saturating_sub(1) as f32) * ch.4))
-        })).unwrap_or((0.0, 0.0))
+
+        let mut lines = ls.iter().enumerate().flat_map(|(i, line)| {
+            let mut result = Vec::new();
+            line.2.iter().for_each(|ch| {
+                if self.cursor.unwrap() == ci { result.push((ch.1.0, i as f32 * ch.4)); }
+                ci += 1;
+            });
+
+            if self.cursor.unwrap() == ci { result.push((line.0, i as f32 * line.1)); }
+
+            result
+        });
+        
+        lines.next().or_else(|| ls.last().map(|l| (l.0, (ls.len().saturating_sub(1) as f32) * l.1))).unwrap_or((0.0, 0.0))
     }
+
+    pub fn cursor_click(&mut self, x: f32, y: f32) {
+        let mut index = 0;
+
+        for line in self.lines.borrow().0.iter() {
+            let line_top = line.2.first().map(|ch| ch.1.1).unwrap_or(0.0);
+
+            if y >= line_top - 5.0 && y <= line_top + line.1 {
+                for (i, ch) in line.2.iter().enumerate() {
+                    if x >= ch.1.0 && x <= ch.1.0 + ch.5 {
+                        match x <= ch.1.0 + (ch.5 / 2.0) {
+                            true => self.cursor = Some(index + i),
+                            false => self.cursor = Some(index + i + 1)
+                        }
+                        return;
+                    }
+                }
+
+                match x < line.2.first().map(|c| c.1.0).unwrap_or(0.0) {
+                    true => self.cursor = Some(index),
+                    false => self.cursor = Some(index + line.2.len())
+                }
+
+                return;
+            }
+
+            index += line.2.len();
+        }
+
+        self.cursor = Some(index);
+    }
+
+
 
     fn lines(&self, atlas: &mut TextAtlas) -> Vec<Line> {
         let mut lines = Vec::new();
@@ -106,7 +145,6 @@ impl Text {
         self.spans.iter().for_each(|s| {
             let lm = atlas.line_metrics(&s.font);
             let lh = s.line_height.unwrap_or_else(|| lm.new_line_size * s.font_size);
-
             s.text.split('\n').into_iter().for_each(|raw_line| {
                 raw_line.split_inclusive(|c: char| c.is_whitespace()).into_iter().for_each(|word| {
                     let mut word_width = 0.0;
@@ -128,15 +166,17 @@ impl Text {
                     glyphs.into_iter().for_each(|(c, (xmin, ymin, width, height), aw)| {
                         current_line.2.push(Character(c,
                             (current_line.0 + xmin,(lines.iter().fold(0.0, |h, l| h + l.1) - ymin - height) + (lm.descent * s.font_size), width, height),
-                            s.font.clone(), s.color, s.font_size,
+                            s.font.clone(), s.color, lh, aw
                         ));
                         current_line.0 += aw;
                         current_line.1 = current_line.1.max(lh);
                     });
                 });
 
+                if current_line.2.is_empty() { current_line.1 = current_line.1.max(lh); }
                 current_line.2.iter_mut().for_each(|ch| ch.1.1 += current_line.1);
                 lines.push(current_line.take());
+
             })
         });
 

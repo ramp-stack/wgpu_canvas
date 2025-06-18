@@ -1,6 +1,6 @@
 [package]
 name = "wgpu_canvas"
-version = "4.0.3"
+version = "4.0.6"
 edition = "2021"
 license = "BSD-3-Clause"
 repository = "https://github.com/ramp-stack/wgpu_canvas.git"
@@ -15,10 +15,7 @@ wgpu = "25.0.0"
 hex = "0.4.3"
 wgpu_dyn_buffer = "3.0.0"
 bytemuck = "1.21.0"
-ramp-glyphon = "0.9.1"
 image = {package="image", version="0.25.5"}
 fast_image_resize = {version="5.1.2", features=["image"]}
-unicode-segmentation = "1.12.0"
 rand = "0.9.1"
-texture_packer = "0.30.0"
 fontdue = "0.9.3"
