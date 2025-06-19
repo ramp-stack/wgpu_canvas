@@ -144,9 +144,9 @@ impl Text {
         let mut current_line = Line::default();
         self.spans.iter().for_each(|s| {
             let lm = atlas.line_metrics(&s.font);
-            let lh = s.line_height.unwrap_or_else(|| lm.new_line_size * s.font_size);
-            s.text.split('\n').into_iter().for_each(|raw_line| {
-                raw_line.split_inclusive(|c: char| c.is_whitespace()).into_iter().for_each(|word| {
+            let lh = s.line_height.unwrap_or(lm.new_line_size * s.font_size);
+            s.text.split('\n').for_each(|raw_line| {
+                raw_line.split_inclusive(|c: char| c.is_whitespace()).for_each(|word| {
                     let mut word_width = 0.0;
 
                     let glyphs: Vec<_> = word.chars().map(|c| {

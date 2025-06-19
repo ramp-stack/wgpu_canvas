@@ -1789,7 +1789,7 @@ dependencies = [
 
 [[package]]
 name = "wgpu_canvas"
-version = "4.0.5"
+version = "4.0.6"
 dependencies = [
  "bytemuck",
  "fast_image_resize",
