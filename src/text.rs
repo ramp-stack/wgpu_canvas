@@ -137,7 +137,25 @@ impl Text {
         self.cursor = Some(index);
     }
 
+    fn place_glyph(
+        current_line: &mut Line,
+        c: char,
+        geom: (f32, f32, f32, f32),
+        advance_width: f32,
+        s: &Span,
+        lh: f32,
+        lm: &LineMetrics,
+        lines: &Vec<Line>,
+    ) {
+        let (xmin, ymin, width, height) = geom;
+        let y = lines.iter().fold(0.0, |h, l| h + l.1) - ymin - height + lm.descent * s.font_size;
 
+        current_line.2.push(Character(c, (current_line.0 + xmin, y, width, height),
+            s.font.clone(), s.color, lh, advance_width,
+        ));
+        current_line.0 += advance_width;
+        current_line.1 = current_line.1.max(lh);
+    }
 
     fn lines(&self, atlas: &mut TextAtlas) -> Vec<Line> {
         let mut lines = Vec::new();
@@ -148,7 +166,6 @@ impl Text {
             s.text.split('\n').for_each(|raw_line| {
                 raw_line.split_inclusive(|c: char| c.is_whitespace()).for_each(|word| {
                     let mut word_width = 0.0;
-
                     let glyphs: Vec<_> = word.chars().map(|c| {
                         let m = atlas.metrics(&s.font, c, s.font_size);
                         let aw = m.advance_width;
@@ -161,18 +178,20 @@ impl Text {
                             current_line.2.iter_mut().for_each(|ch| ch.1.1 += current_line.1);
                             lines.push(current_line.take());
                         }
+
+                        for (c, geom, aw) in glyphs.iter() {
+                            if current_line.0 + aw > width && !current_line.2.is_empty() {
+                                current_line.2.iter_mut().for_each(|ch| ch.1.1 += current_line.1);
+                                lines.push(current_line.take());
+                            }
+                            Self::place_glyph(&mut current_line, *c, *geom, *aw, s, lh, &lm, &lines);
+                        }
+                    } else {
+                        for (c, geom, aw) in glyphs.iter() {
+                            Self::place_glyph(&mut current_line, *c, *geom, *aw, s, lh, &lm, &lines);
+                        }
                     }
-
-                    glyphs.into_iter().for_each(|(c, (xmin, ymin, width, height), aw)| {
-                        current_line.2.push(Character(c,
-                            (current_line.0 + xmin,(lines.iter().fold(0.0, |h, l| h + l.1) - ymin - height) + (lm.descent * s.font_size), width, height),
-                            s.font.clone(), s.color, lh, aw
-                        ));
-                        current_line.0 += aw;
-                        current_line.1 = current_line.1.max(lh);
-                    });
                 });
-
                 if current_line.2.is_empty() { current_line.1 = current_line.1.max(lh); }
                 current_line.2.iter_mut().for_each(|ch| ch.1.1 += current_line.1);
                 lines.push(current_line.take());
