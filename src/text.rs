@@ -53,6 +53,7 @@ pub struct Text{
     pub align: Align,
     pub cursor: Option<Cursor>,
     pub scale: f32,
+    pub max_lines: Option<u32>,
     lines: Rc<RefCell<Lines>>,
 }
 
@@ -73,8 +74,8 @@ impl Text {
         state.finish()
     }
 
-    pub fn new(spans: Vec<Span>, width: Option<f32>, align: Align) -> Self {
-        Text{spans, width, align, cursor: None, scale: 1.0, lines: Rc::new(RefCell::new((Vec::new(), (Vec::new(), None), 0)))}
+    pub fn new(spans: Vec<Span>, width: Option<f32>, align: Align, max_lines: Option<u32>) -> Self {
+        Text{spans, width, align, cursor: None, scale: 1.0, max_lines, lines: Rc::new(RefCell::new((Vec::new(), (Vec::new(), None), 0)))}
     }
 
     pub fn size(&self, mut ctx: impl AsMut<Atlas>) -> (f32, f32) {
@@ -137,33 +138,13 @@ impl Text {
         self.cursor = Some(index);
     }
 
-    fn place_glyph(
-        current_line: &mut Line,
-        c: char,
-        geom: (f32, f32, f32, f32),
-        advance_width: f32,
-        s: &Span,
-        lh: f32,
-        lm: &LineMetrics,
-        lines: &Vec<Line>,
-    ) {
-        let (xmin, ymin, width, height) = geom;
-        let y = lines.iter().fold(0.0, |h, l| h + l.1) - ymin - height + lm.descent * s.font_size;
-
-        current_line.2.push(Character(c, (current_line.0 + xmin, y, width, height),
-            s.font.clone(), s.color, lh, advance_width,
-        ));
-        current_line.0 += advance_width;
-        current_line.1 = current_line.1.max(lh);
-    }
-
     fn lines(&self, atlas: &mut TextAtlas) -> Vec<Line> {
         let mut lines = Vec::new();
         let mut current_line = Line::default();
         self.spans.iter().for_each(|s| {
             let lm = atlas.line_metrics(&s.font);
             let lh = s.line_height.unwrap_or(lm.new_line_size * s.font_size);
-            s.text.split('\n').for_each(|raw_line| {
+            s.text.split('\n').enumerate().for_each(|(i, raw_line)| {
                 raw_line.split_inclusive(|c: char| c.is_whitespace()).for_each(|word| {
                     let mut word_width = 0.0;
                     let glyphs: Vec<_> = word.chars().map(|c| {
@@ -174,36 +155,49 @@ impl Text {
                     }).collect();
 
                     if let Some(width) = self.width {
-                        if current_line.0 + word_width > width && !current_line.2.is_empty() {
-                            current_line.2.iter_mut().for_each(|ch| ch.1.1 += current_line.1);
-                            lines.push(current_line.take());
+                        if word_width <= width || !self.max_lines.is_some() {
+                            if current_line.0 + word_width > width && !current_line.2.is_empty() {
+                                current_line.2.iter_mut().for_each(|ch| ch.1.1 += current_line.1);
+                                lines.push(current_line.take());
+                            }
                         }
-
-                        for (c, geom, aw) in glyphs.iter() {
+                        for (c, (xmin, ymin, w, h), aw) in glyphs.iter() {
                             if current_line.0 + aw > width && !current_line.2.is_empty() {
                                 current_line.2.iter_mut().for_each(|ch| ch.1.1 += current_line.1);
                                 lines.push(current_line.take());
                             }
-                            Self::place_glyph(&mut current_line, *c, *geom, *aw, s, lh, &lm, &lines);
+                            let y = lines.iter().fold(0.0, |h, l| h + l.1) - ymin - h + lm.descent * s.font_size;
+                            current_line.2.push(Character(*c, (current_line.0 + xmin, y, *w, *h),
+                                s.font.clone(), s.color, lh, *aw,
+                            ));
+                            current_line.0 += aw;
+                            current_line.1 = current_line.1.max(lh);
                         }
                     } else {
-                        for (c, geom, aw) in glyphs.iter() {
-                            Self::place_glyph(&mut current_line, *c, *geom, *aw, s, lh, &lm, &lines);
+                        for (c, (xmin, ymin, w, h), aw) in glyphs.iter() {
+                            let y = lines.iter().fold(0.0, |h, l| h + l.1) - ymin - h + lm.descent * s.font_size;
+                            current_line.2.push(Character(*c, (current_line.0 + xmin, y, *w, *h),
+                                s.font.clone(), s.color, lh, *aw,
+                            ));
+                            current_line.0 += aw;
+                            current_line.1 = current_line.1.max(lh);
                         }
                     }
+
                 });
                 if current_line.2.is_empty() { current_line.1 = current_line.1.max(lh); }
                 current_line.2.iter_mut().for_each(|ch| ch.1.1 += current_line.1);
                 lines.push(current_line.take());
-
             })
         });
 
+        // last line handled
         if !current_line.2.is_empty() {
             current_line.2.iter_mut().for_each(|ch| ch.1.1 += current_line.1);
             lines.push(current_line.take());
         }
 
+        // alignment
         lines.iter_mut().for_each(|line| {
             let offset_x = match self.align {
                 Align::Left => 0.0,
@@ -213,8 +207,42 @@ impl Text {
             line.2.iter_mut().for_each(|ch| ch.1.0 += offset_x);
             line.0 += offset_x;
         });
-        
-        lines
+
+        // line max
+        match self.max_lines {
+            None => lines,
+            Some(max) => {
+                let len = lines.len();
+                let mut lines: Vec<_> = lines.into_iter().enumerate().filter_map(|(i, line)| (i < max as usize).then_some(line)).collect();
+                let y = lines.iter().fold(0.0, |h, l| h + l.1);
+                if len > max as usize {
+                    if let Some(last) = lines.last_mut() {
+                        last.2.truncate(last.2.len().saturating_sub(3));
+                        let s = &self.spans[0];
+                        let lm = atlas.line_metrics(&s.font);
+                        let lh = s.line_height.unwrap_or(lm.new_line_size * s.font_size);
+
+                        let glyphs: Vec<_> = "...".chars().map(|c| {
+                            let m = atlas.metrics(&s.font, c, s.font_size);
+                            let aw = m.advance_width;
+                            (c, (m.bounds.xmin, m.bounds.ymin, m.bounds.width, m.bounds.height), aw)
+                        }).collect();
+
+                        let mut start_x = last.2.last().map(|g| g.1.0 + g.5).unwrap_or(0.0);
+                        for (c, (xmin, ymin, w, h), aw) in glyphs.iter() {
+                            last.2.push(Character(*c, (start_x + xmin, y - ymin - h + lm.descent * s.font_size, *w, *h),
+                                s.font.clone(), s.color, lh, *aw,
+                            ));
+                            start_x += *aw;
+                            last.0 += *aw;
+                            last.1 = last.1.max(lh);
+                        }
+                    }
+                }
+
+                lines
+            }
+        }
     }
 }
 
