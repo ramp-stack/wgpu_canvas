@@ -8,7 +8,7 @@ use std::rc::Rc;
 
 use super::{Area, Color, Image, Shape, ImageAtlas, Atlas};
 
-type SpanInfo = (u64, f32, Option<f32>, Font);
+type SpanInfo = (u64, f32, Option<f32>, Font, Color);
 
 pub type Cursor = usize;
 
@@ -63,7 +63,7 @@ impl Text {
         (self.spans.iter().map(|s| {
             let mut state = DefaultHasher::new();
             s.text.hash(&mut state);
-            (state.finish(), s.font_size, s.line_height, s.font.clone())
+            (state.finish(), s.font_size, s.line_height, s.font.clone(), s.color)
         }).collect::<Vec<_>>(),
         self.width)
     }
@@ -144,7 +144,7 @@ impl Text {
         self.spans.iter().for_each(|s| {
             let lm = atlas.line_metrics(&s.font);
             let lh = s.line_height.unwrap_or(lm.new_line_size * s.font_size);
-            s.text.split('\n').enumerate().for_each(|(i, raw_line)| {
+            s.text.split('\n').for_each(|raw_line| {
                 raw_line.split_inclusive(|c: char| c.is_whitespace()).for_each(|word| {
                     let mut word_width = 0.0;
                     let glyphs: Vec<_> = word.chars().map(|c| {
