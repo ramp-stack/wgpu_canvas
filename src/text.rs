@@ -155,11 +155,10 @@ impl Text {
                     }).collect();
 
                     if let Some(width) = self.width {
-                        if word_width <= width || !self.max_lines.is_some() {
-                            if current_line.0 + word_width > width && !current_line.2.is_empty() {
-                                current_line.2.iter_mut().for_each(|ch| ch.1.1 += current_line.1);
-                                lines.push(current_line.take());
-                            }
+                        if word_width <= width || self.max_lines.is_none()
+                        && current_line.0 + word_width > width && !current_line.2.is_empty() {
+                            current_line.2.iter_mut().for_each(|ch| ch.1.1 += current_line.1);
+                            lines.push(current_line.take());
                         }
                         for (c, (xmin, ymin, w, h), aw) in glyphs.iter() {
                             if current_line.0 + aw > width && !current_line.2.is_empty() {
