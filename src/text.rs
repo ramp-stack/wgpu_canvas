@@ -21,12 +21,13 @@ pub struct Span{
     pub font_size: f32,
     pub line_height: Option<f32>,
     pub font: Font,
-    pub color: Color
+    pub color: Color,
+    pub kerning: f32,
 }
 
 impl Span {
-    pub fn new(text: String, font_size: f32, line_height: Option<f32>, font: Font, color: Color) -> Self {
-        Span{text, font_size, line_height, font, color}
+    pub fn new(text: String, font_size: f32, line_height: Option<f32>, font: Font, color: Color, kerning: f32) -> Self {
+        Span{text, font_size, line_height, font, color, kerning}
     }
 }
 
@@ -150,7 +151,7 @@ impl Text {
                     let glyphs: Vec<_> = word.chars().map(|c| {
                         let m = atlas.metrics(&s.font, c, s.font_size);
                         let aw = m.advance_width;
-                        word_width += aw;
+                        word_width += aw + s.kerning;
                         (c, (m.bounds.xmin, m.bounds.ymin, m.bounds.width, m.bounds.height), aw)
                     }).collect();
 
@@ -170,7 +171,7 @@ impl Text {
                             current_line.2.push(Character(*c, (current_line.0 + xmin, y, *w, *h),
                                 s.font.clone(), s.color, lh, *aw,
                             ));
-                            current_line.0 += aw;
+                            current_line.0 += aw + s.kerning;
                             current_line.1 = current_line.1.max(lh);
                         }
                     } else {
@@ -179,7 +180,7 @@ impl Text {
                             current_line.2.push(Character(*c, (current_line.0 + xmin, y, *w, *h),
                                 s.font.clone(), s.color, lh, *aw,
                             ));
-                            current_line.0 += aw;
+                            current_line.0 += aw + s.kerning;
                             current_line.1 = current_line.1.max(lh);
                         }
                     }
@@ -224,7 +225,7 @@ impl Text {
 
                         let glyphs: Vec<_> = "...".chars().map(|c| {
                             let m = atlas.metrics(&s.font, c, s.font_size);
-                            let aw = m.advance_width;
+                            let aw = m.advance_width + s.kerning;
                             (c, (m.bounds.xmin, m.bounds.ymin, m.bounds.width, m.bounds.height), aw)
                         }).collect();
 

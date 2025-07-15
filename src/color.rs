@@ -6,10 +6,18 @@ pub use renderer::ColorRenderer;
 pub struct Color(pub u8, pub u8, pub u8, pub u8);
 
 impl Color {
-    pub fn from_hex(color: &'static str, alpha: u8) -> Self {
+    pub fn from_hex(color: &str, alpha: u8) -> Self {
         let ce = "Color was not a Hex Value";
         let c = hex::decode(color.strip_prefix('#').unwrap_or(color)).expect(ce);
         Color(c[0], c[1], c[2], alpha)
+    }
+
+    pub fn hex(&self) -> String {
+        format!("{:02X}{:02X}{:02X}", self.0, self.1, self.2)
+    }
+
+    pub fn opacity(&self) -> u8 {
+        self.3
     }
 
     pub(crate) fn color(&self) -> [f32; 4] {
