@@ -5,6 +5,12 @@ pub use renderer::ColorRenderer;
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Color(pub u8, pub u8, pub u8, pub u8);
 
+impl Default for Color {
+    fn default() -> Color {
+        Color::from_hex("FFFFFF", 255)
+    }
+}
+
 impl Color {
     pub fn from_hex(color: &str, alpha: u8) -> Self {
         let ce = "Color was not a Hex Value";
