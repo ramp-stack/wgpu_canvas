@@ -88,10 +88,10 @@ impl ImageRenderer {
             |mut a, (z, area, shape, key, color)| {
                 let image = image_atlas.get(&key);
                 match shape {
-                    Shape::Ellipse(stroke, size) => a.0.push((ImageVertex::new(ShapeVertex::new(width, height, z, area, stroke, size), &key, size, color), image)),
-                    Shape::Rectangle(stroke, size) => a.1.push((ImageVertex::new(ShapeVertex::new(width, height, z, area, stroke, size), &key, size, color), image)),
-                    Shape::RoundedRectangle(stroke, size, corner_radius) =>
-                        a.2.push((ImageVertex::new(RoundedRectangleVertex::new(width, height, z, area, stroke, size, corner_radius), &key, size, color), image)),
+                    Shape::Ellipse(stroke, size, rotation) => a.0.push((ImageVertex::new(ShapeVertex::new(width, height, z, area, stroke, size, rotation), &key, size, color), image)),
+                    Shape::Rectangle(stroke, size, rotation) => a.1.push((ImageVertex::new(ShapeVertex::new(width, height, z, area, stroke, size, rotation), &key, size, color), image)),
+                    Shape::RoundedRectangle(stroke, size, corner_radius, rotation) =>
+                        a.2.push((ImageVertex::new(RoundedRectangleVertex::new(width, height, z, area, stroke, size, corner_radius, rotation), &key, size, color), image)),
                 }
                 a
             }

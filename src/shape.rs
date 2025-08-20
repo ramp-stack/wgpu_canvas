@@ -34,20 +34,22 @@ pub struct ShapeVertex {
     pub size: [f32; 2],
     pub bounds: [f32; 4],
     pub z_index: f32,
-    pub stroke: f32
+    pub stroke: f32,
+    pub rotation: f32,
 }
 
 impl Vertex for ShapeVertex {
     fn attributes() -> Vec<VertexFormat> {
         vec![
             VertexFormat::Float32x2, VertexFormat::Float32x2, VertexFormat::Float32x2,
-            VertexFormat::Float32x4, VertexFormat::Float32, VertexFormat::Float32
+            VertexFormat::Float32x4, VertexFormat::Float32, VertexFormat::Float32, 
+            VertexFormat::Float32
         ]
     }
 }
 
 impl ShapeVertex {
-    pub fn new(width: f32, height: f32, z: u16, area: Area, stroke: f32, size: (f32, f32)) -> [ShapeVertex; 4] {
+    pub fn new(width: f32, height: f32, z: u16, area: Area, stroke: f32, size: (f32, f32), rotation: f32) -> [ShapeVertex; 4] {
         let w = |x: f32| ((x / width) * 2.0) - 1.0;
         let h = |y: f32| 1.0 - ((y / height) * 2.0);
 
@@ -70,10 +72,10 @@ impl ShapeVertex {
         let z_index = z as f32 / u16::MAX as f32;
 
         [
-            ShapeVertex{uv: [0.0, 0.0], position: [x, y], size, bounds, z_index, stroke},
-            ShapeVertex{uv: [size[0], 0.0], position: [x2, y], size, bounds, z_index, stroke},
-            ShapeVertex{uv: [0.0, size[1]], position: [x, y2], size, bounds, z_index, stroke},
-            ShapeVertex{uv: [size[0], size[1]], position: [x2, y2], size, bounds, z_index, stroke}
+            ShapeVertex{uv: [0.0, 0.0], position: [x, y], size, bounds, z_index, stroke, rotation},
+            ShapeVertex{uv: [size[0], 0.0], position: [x2, y], size, bounds, z_index, stroke, rotation},
+            ShapeVertex{uv: [0.0, size[1]], position: [x, y2], size, bounds, z_index, stroke, rotation},
+            ShapeVertex{uv: [size[0], size[1]], position: [x2, y2], size, bounds, z_index, stroke, rotation}
         ]
     }
 }
@@ -92,8 +94,9 @@ impl Vertex for RoundedRectangleVertex {
 }
 
 impl RoundedRectangleVertex {
-    pub fn new(width: f32, height: f32, z: u16, area: Area, stroke: f32, size: (f32, f32), corner_radius: f32) -> [RoundedRectangleVertex; 4] {
-        ShapeVertex::new(width, height, z, area, stroke, size).into_iter().map(|shape|
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(width: f32, height: f32, z: u16, area: Area, stroke: f32, size: (f32, f32), corner_radius: f32, rotation: f32) -> [RoundedRectangleVertex; 4] {
+        ShapeVertex::new(width, height, z, area, stroke, size, rotation).into_iter().map(|shape|
             RoundedRectangleVertex{shape, corner_radius}
         ).collect::<Vec<_>>().try_into().unwrap()
     }

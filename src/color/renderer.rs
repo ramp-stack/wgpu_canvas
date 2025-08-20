@@ -47,10 +47,10 @@ impl ColorRenderer {
             (vec![], vec![], vec![]),
             |mut a, (z, area, shape, color)| {
                 match shape {
-                    Shape::Ellipse(stroke, size) => a.0.push(ColorVertex::new(ShapeVertex::new(width, height, z, area, stroke, size), color)),
-                    Shape::Rectangle(stroke, size) => a.1.push(ColorVertex::new(ShapeVertex::new(width, height, z, area, stroke, size), color)),
-                    Shape::RoundedRectangle(stroke, size, corner_radius) =>
-                        a.2.push(ColorVertex::new(RoundedRectangleVertex::new(width, height, z, area, stroke, size, corner_radius), color)),
+                    Shape::Ellipse(stroke, size, rotation) => a.0.push(ColorVertex::new(ShapeVertex::new(width, height, z, area, stroke, size, rotation), color)),
+                    Shape::Rectangle(stroke, size, rotation) => a.1.push(ColorVertex::new(ShapeVertex::new(width, height, z, area, stroke, size, rotation), color)),
+                    Shape::RoundedRectangle(stroke, size, corner_radius, rotation) =>
+                        a.2.push(ColorVertex::new(RoundedRectangleVertex::new(width, height, z, area, stroke, size, corner_radius, rotation), color)),
                 }
                 a
             }

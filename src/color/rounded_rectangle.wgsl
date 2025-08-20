@@ -7,6 +7,7 @@ struct ShapeInput {
     @location(5) stroke: f32,
     @location(6) corner_radius: f32,
     @location(7) color: vec4<f32>,
+    @location(8) rotation: f32,
 }
 
 struct VertexOutput {
@@ -20,21 +21,22 @@ struct VertexOutput {
 };
 
 @vertex
-fn vs_main(
-    shape: ShapeInput,
-) -> VertexOutput {
-    var out: VertexOutput;
-    out.position = vec4<f32>(shape.position, shape.z, 1.0);
-    out.uv = shape.uv;
+fn vs_main(shape: ShapeInput) -> VertexOutput {
+    let c = cos(shape.rotation);
+    let s = sin(shape.rotation);
+    let center = shape.position + vec2<f32>(shape.size.x * 0.5, -shape.size.y * 0.5);
+    let p = shape.position - center;
+    let r = vec2<f32>(c * p.x - s * p.y, s * p.x + c * p.y) + center;
 
-    out.size = shape.size;
-
-    out.bounds = shape.bounds;
-    out.stroke = shape.stroke;
-    out.corner_radius = shape.corner_radius;
-    out.color = shape.color;
-
-    return out;
+    return VertexOutput(
+        vec4<f32>(r, shape.z, 1.0),
+        shape.uv,
+        shape.size,
+        shape.bounds,
+        shape.stroke,
+        shape.corner_radius,
+        shape.color
+    );
 }
 
 fn alpha(uv: vec2<f32>, size: vec2<f32>, stroke: f32, cr: f32) -> f32 {

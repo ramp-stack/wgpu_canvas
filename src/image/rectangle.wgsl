@@ -6,7 +6,8 @@ struct ShapeInput {
     @location(4) z: f32,
     @location(5) stroke: f32,
     @location(6) texture: vec2<f32>,
-    @location(7) color: vec4<f32>
+    @location(7) color: vec4<f32>,
+    @location(8) rotation: f32,
 }
 
 struct VertexOutput {

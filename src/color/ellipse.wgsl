@@ -5,7 +5,7 @@ struct ShapeInput {
     @location(3) bounds: vec4<f32>,
     @location(4) z: f32,
     @location(5) stroke: f32,
-    @location(6) color: vec4<f32>
+    @location(6) color: vec4<f32>,
 }
 
 struct VertexOutput {

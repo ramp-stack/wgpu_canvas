@@ -24,17 +24,17 @@ impl Area {
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Shape {
-    Ellipse(f32, (f32, f32)),
-    Rectangle(f32, (f32, f32)),
-    RoundedRectangle(f32, (f32, f32), f32),
+    Ellipse(f32, (f32, f32), f32),
+    Rectangle(f32, (f32, f32), f32),
+    RoundedRectangle(f32, (f32, f32), f32, f32),
 }
 
 impl Shape {
     pub fn size(&self) -> (f32, f32) {
         match self {
-            Shape::Ellipse(_, size) => *size,
-            Shape::Rectangle(_, size) => *size,
-            Shape::RoundedRectangle(_, size, _) => *size,
+            Shape::Ellipse(_, size, _) => *size,
+            Shape::Rectangle(_, size, _) => *size,
+            Shape::RoundedRectangle(_, size, _, _) => *size,
         }
     }
 }

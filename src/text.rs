@@ -156,11 +156,9 @@ impl Text {
                     }).collect();
 
                     if let Some(width) = self.width {
-                        if word_width <= width || !self.max_lines.is_some() {
-                            if current_line.0 + word_width > width && !current_line.2.is_empty() {
-                                current_line.2.iter_mut().for_each(|ch| ch.1.1 += current_line.1);
-                                lines.push(current_line.take());
-                            }
+                        if (word_width <= width || self.max_lines.is_none()) && current_line.0 + word_width > width && !current_line.2.is_empty() {
+                            current_line.2.iter_mut().for_each(|ch| ch.1.1 += current_line.1);
+                            lines.push(current_line.take());
                         }
                         for (c, (xmin, ymin, w, h), aw) in glyphs.iter() {
                             if current_line.0 + aw > width && !current_line.2.is_empty() {
@@ -368,7 +366,7 @@ impl TextAtlas {
             t.lines.borrow().0.iter().flat_map(|line| line.2.iter().flat_map(|ch| {
                 self.get_image(image_atlas, &ch.2, ch.0, ch.4*scale).map(|img| {
                     let a = Area((a.0.0+(ch.1.0*scale), a.0.1+(ch.1.1*scale)), a.1);
-                    let shape = Shape::Rectangle(0.0, (ch.1.2*scale, ch.1.3*scale));
+                    let shape = Shape::Rectangle(0.0, (ch.1.2*scale, ch.1.3*scale), 0.0);
                     (z, a, shape, img, Some(ch.3))
                 })
             }).collect::<Vec<_>>()).collect::<Vec<_>>()
