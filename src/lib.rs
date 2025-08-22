@@ -22,23 +22,39 @@ impl Area {
     }
 }
 
+/// # WGPU Canvas Shape
+///
+/// Represents the geometric form of a shape.  
+/// Each variant carries its own parameters for rendering:
+/// - **Ellipse**: `(stroke_width, (width, height), rotation)`  
+/// - **Rectangle**: `(stroke_width, (width, height), rotation)`  
+/// - **RoundedRectangle**: `(stroke_width, (width, height), corner_radius, rotation)`  
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Shape {
-    Ellipse(f32, (f32, f32)),
-    Rectangle(f32, (f32, f32)),
-    RoundedRectangle(f32, (f32, f32), f32),
+    Ellipse(f32, (f32, f32), f32),
+    Rectangle(f32, (f32, f32), f32),
+    RoundedRectangle(f32, (f32, f32), f32, f32),
 }
 
 impl Shape {
+    /// Returns the size of the shape.
     pub fn size(&self) -> (f32, f32) {
         match self {
-            Shape::Ellipse(_, size) => *size,
-            Shape::Rectangle(_, size) => *size,
-            Shape::RoundedRectangle(_, size, _) => *size,
+            Shape::Ellipse(_, size, _) => *size,
+            Shape::Rectangle(_, size, _) => *size,
+            Shape::RoundedRectangle(_, size, _, _) => *size,
         }
     }
 }
 
+/// # WGPU Canvas Item
+///
+/// A drawable item.
+///
+/// - **Shape**: A geometric [`Shape`] with a fill [`Color`].  
+/// - **Image**: An [`Image`] clipped or fitted into a [`Shape`],  
+///   with an optional recoloring of all opaque pixels.  
+/// - **Text**: A piece of styled [`Text`]. 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Item {
     Shape(Shape, Color),

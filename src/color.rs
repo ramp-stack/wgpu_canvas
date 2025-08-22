@@ -2,6 +2,7 @@ mod renderer;
 
 pub use renderer::ColorRenderer;
 
+/// RGBA representation of color.
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Color(pub u8, pub u8, pub u8, pub u8);
 
@@ -12,16 +13,24 @@ impl Default for Color {
 }
 
 impl Color {
+    /// Creates an RGBA color from a hex code and alpha value.
+    ///
+    /// ```rust
+    /// let pink = Color::from_hex("#FF006E", 255);
+    /// ```
     pub fn from_hex(color: &str, alpha: u8) -> Self {
         let ce = "Color was not a Hex Value";
         let c = hex::decode(color.strip_prefix('#').unwrap_or(color)).expect(ce);
         Color(c[0], c[1], c[2], alpha)
     }
 
+    /// Returns the RGBA values as a hex string.
     pub fn hex(&self) -> String {
         format!("{:02X}{:02X}{:02X}", self.0, self.1, self.2)
     }
 
+
+    /// Returns the opacity value.
     pub fn opacity(&self) -> u8 {
         self.3
     }

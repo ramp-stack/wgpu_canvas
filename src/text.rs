@@ -12,16 +12,34 @@ type SpanInfo = (u64, f32, Option<f32>, Font, Color);
 
 pub type Cursor = usize;
 
+/// Text alignment enumerator.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum Align {Left, Center, Right}
+pub enum Align {
+    Left, 
+    Center, 
+    Right
+}
 
+/// # Span
+///
+/// A styled segment of text.
+///
+/// ```rust
+/// let span = Span::new("Hello, World!", 24.0, None, my_font, Color::from_hex("005EFF", 255), 0.0);
+/// ```
 #[derive(Debug, Clone, PartialEq)]
 pub struct Span{
+    /// The text content.  
     pub text: String, 
+    /// Size of the font in logical pixels. 
     pub font_size: f32,
+    /// Optional custom line height.
     pub line_height: Option<f32>,
+    /// The font face used for rendering.  
     pub font: Font,
+    /// The text color.
     pub color: Color,
+    /// Additional spacing between characters.
     pub kerning: f32,
 }
 
@@ -47,17 +65,26 @@ impl Line {
 
 type Lines = (Vec<Line>, (Vec<SpanInfo>, Option<f32>), u64);
 
+/// # Text
+///
+/// A text container composed of one or more [`Spans`](Span).  
+/// Supports layout, alignment, scaling, and cursor placement for editing or interaction.
 #[derive(Debug, Clone, PartialEq)]
-pub struct Text{
+pub struct Text {
+    /// A vector of styled [`Span`] segments that make up the text content.
     pub spans: Vec<Span>,
+    /// Optional maximum width.  
     pub width: Option<f32>,
+    /// Horizontal alignment of the text.
     pub align: Align,
+    /// Optional cursor position for editable or interactive text.
     pub cursor: Option<Cursor>,
+    /// Scale factor applied to all spans.
     pub scale: f32,
+    /// Optional maximum number of rendered lines.
     pub max_lines: Option<u32>,
     lines: Rc<RefCell<Lines>>,
 }
-
 
 impl Text {
     fn hash_size(&self) -> (Vec<SpanInfo>, Option<f32>) {
@@ -368,7 +395,7 @@ impl TextAtlas {
             t.lines.borrow().0.iter().flat_map(|line| line.2.iter().flat_map(|ch| {
                 self.get_image(image_atlas, &ch.2, ch.0, ch.4*scale).map(|img| {
                     let a = Area((a.0.0+(ch.1.0*scale), a.0.1+(ch.1.1*scale)), a.1);
-                    let shape = Shape::Rectangle(0.0, (ch.1.2*scale, ch.1.3*scale));
+                    let shape = Shape::Rectangle(0.0, (ch.1.2*scale, ch.1.3*scale), 0.0);
                     (z, a, shape, img, Some(ch.3))
                 })
             }).collect::<Vec<_>>()).collect::<Vec<_>>()
