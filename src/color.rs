@@ -13,6 +13,10 @@ impl Default for Color {
 }
 
 impl Color {
+    pub const WHITE: Color = Color(255, 255, 255, 255);
+    pub const BLACK: Color = Color(0, 0, 0, 255);
+    pub const TRANSPARENT: Color = Color(0, 0, 0, 0);
+
     /// Creates an RGBA color from a hex code and alpha value.
     ///
     /// ```rust
@@ -29,7 +33,6 @@ impl Color {
         format!("{:02X}{:02X}{:02X}", self.0, self.1, self.2)
     }
 
-
     /// Returns the opacity value.
     pub fn opacity(&self) -> u8 {
         self.3
@@ -38,5 +41,18 @@ impl Color {
     pub(crate) fn color(&self) -> [f32; 4] {
         let c = |f: u8| (((f as f32 / u8::MAX as f32) + 0.055) / 1.055).powf(2.4);
         [c(self.0), c(self.1), c(self.2), c(self.3)]
+    }
+
+    pub fn darken(c: Color, factor: f32) -> Color {
+        let avg = ((c.0 as f32 + c.1 as f32 + c.2 as f32) / 3.0) * 0.1;
+        let f = |ch: u8| {
+            let chf = ch as f32 * factor;
+            ((avg + (chf - avg) * 0.1).clamp(0.0, 255.0)) as u8
+        };
+        Color(f(c.0), f(c.1), f(c.2), c.3)
+    }
+
+    pub fn is_high_contrast(c: Color) -> bool {
+        0.299*(c.0 as f32) + 0.587*(c.1 as f32) + 0.114*(c.2 as f32) > 128.0
     }
 }
