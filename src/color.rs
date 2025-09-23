@@ -44,10 +44,11 @@ impl Color {
     }
 
     pub fn darken(c: Color, factor: f32) -> Color {
-        let avg = ((c.0 as f32 + c.1 as f32 + c.2 as f32) / 3.0) * 0.1;
+        let avg = ((c.0 as f32 + c.1 as f32 + c.2 as f32) / 3.0) as u8;
         let f = |ch: u8| {
-            let chf = ch as f32 * factor;
-            ((avg + (chf - avg) * 0.1).clamp(0.0, 255.0)) as u8
+            let dark = (ch as f32 * factor) as u8;
+            let sat_boost = dark as i16 + ((dark as i16 - avg as i16) / 5);
+            sat_boost.clamp(0, 255) as u8
         };
         Color(f(c.0), f(c.1), f(c.2), c.3)
     }
