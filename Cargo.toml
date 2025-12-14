@@ -1,6 +1,6 @@
 [package]
 name = "wgpu_canvas"
-version = "5.0.1"
+version = "5.0.2"
 edition = "2021"
 license = "BSD-3-Clause"
 repository = "https://github.com/ramp-stack/wgpu_canvas.git"

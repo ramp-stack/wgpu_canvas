@@ -21,7 +21,7 @@ impl Canvas {
     /// Creates a new `Canvas` for the given window and size.
     ///
     /// Returns the `Canvas` and its initial `(width, height)`
-    pub async fn new<W: WindowHandle + 'static>(window: W, width: u32, height: u32) -> (Self, (u32, u32)) {
+    pub async fn new<W: WindowHandle + 'static>(window: W, width: u32, height: u32) -> Self {
         let instance = Instance::new(&InstanceDescriptor::default());
 
         let surface = instance.create_surface(window).unwrap();
@@ -37,8 +37,9 @@ impl Canvas {
         let mut limits = Limits::downlevel_webgl2_defaults();
         limits.max_texture_dimension_2d = if cfg!(target_os = "android") {4096} else {8192};
 
-        let width = width.min(limits.max_texture_dimension_2d);
-        let height = height.min(limits.max_texture_dimension_2d);
+        if width > limits.max_texture_dimension_2d || height > limits.max_texture_dimension_2d {
+            panic!("Width or Height exceeded max texture dimension {}", limits.max_texture_dimension_2d);
+        }
 
         let (device, queue) = adapter.request_device(
             &DeviceDescriptor {
@@ -85,9 +86,7 @@ impl Canvas {
 
         let renderer = Renderer::new(&device, &surface_caps.formats[0], multisample, Some(depth_stencil));
 
-        let size = (config.width, config.height);
-
-        (Canvas{
+        Canvas{
             _instance: instance,
             surface,
             device,
@@ -96,7 +95,7 @@ impl Canvas {
             msaa_view,
             depth_view,
             renderer,
-        }, size)
+        }
     }
 
     /// Resizes the canvas to the given dimensions.
@@ -104,7 +103,7 @@ impl Canvas {
     /// Returns the updated `(width, height)`.
     pub fn resize<W: WindowHandle + 'static>(
         &mut self, _new_window: Option<Arc<W>>, width: u32, height: u32
-    ) -> (u32, u32) {
+    ) {
         // if let Some(new_window) = new_window {
         //     self.surface = self.instance.create_surface(new_window).unwrap();
         // }
@@ -119,8 +118,6 @@ impl Canvas {
             }
             self.depth_view = Self::create_depth_view(&self.device, &self.config);
         }
-
-        (self.config.width, self.config.height)
     }
 
     /// Draws the given `items` using the provided `atlas`.
