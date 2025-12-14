@@ -20,15 +20,15 @@ pub struct Color(pub u8, pub u8, pub u8, pub u8);
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Shape {
-    shape: ShapeType,
-    color: Color
+    pub shape: ShapeType,
+    pub color: Color
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Image {
-    shape: ShapeType,
-    image: Arc<RgbaImage>,
-    color: Option<Color>
+    pub shape: ShapeType,
+    pub image: Arc<RgbaImage>,
+    pub color: Option<Color>
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -47,6 +47,6 @@ pub enum ShapeType {
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Area {
-    offset: (f32, f32),
-    bounds: Option<(f32, f32, f32, f32)>
+    pub offset: (f32, f32),
+    pub bounds: Option<(f32, f32, f32, f32)>
 }

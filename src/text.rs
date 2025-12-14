@@ -5,7 +5,7 @@ use std::sync::Arc;
 pub type Cursor = usize;
 
 #[derive(Debug, Clone)]
-pub struct Font(fontdue::Font);
+pub struct Font(pub fontdue::Font);
 impl Font {
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, &'static str> {
         Ok(Font(fontdue::Font::from_bytes(bytes, fontdue::FontSettings{scale: 160.0, ..Default::default()})?))
