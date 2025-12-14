@@ -2,8 +2,8 @@
 
 use wgpu::{VertexBufferLayout, VertexStepMode, BufferAddress, VertexAttribute, VertexFormat};
 
-use super::{Area, Color};
-use crate::image::Image;
+use crate::{RgbaImage, Area, Color};
+use std::sync::Arc;
 
 pub trait Vertex: std::fmt::Debug + bytemuck::Pod + bytemuck::Zeroable{
     fn attributes() -> Vec<VertexFormat> where Self: Sized;
@@ -51,18 +51,18 @@ impl ShapeVertex {
         let w = |x: f32| ((x / width) * 2.0) - 1.0;
         let h = |y: f32| 1.0 - ((y / height) * 2.0);
 
-        let x = w(area.0.0);
-        let y = h(area.0.1);
-        let x2 = w(area.0.0 + size.0);
-        let y2 = h(area.0.1 + size.1);
+        let x = w(area.offset.0);
+        let y = h(area.offset.1);
+        let x2 = w(area.offset.0 + size.0);
+        let y2 = h(area.offset.1 + size.1);
 
         let stroke = stroke.min(size.0.min(size.1));
 
         let size = [size.0, size.1];
 
-        let bounds = area.bounds(width, height);
-        let bx = bounds.0 - area.0.0;
-        let by = bounds.1 - area.0.1;
+        let bounds = area.bounds.unwrap_or((0.0, 0.0, width, height));
+        let bx = bounds.0 - area.offset.0;
+        let by = bounds.1 - area.offset.1;
         let bx2 = bx + bounds.2;
         let by2 = by + bounds.3;
         let bounds = [bx, by, bx2, by2];
@@ -115,8 +115,10 @@ impl<V: Vertex> Vertex for ColorVertex<V> {
 
 impl<V: Vertex> ColorVertex<V> {
     pub fn new(shape: [V; 4], color: Color) -> [ColorVertex<V>; 4] {
+        let c = |f: u8| (((f as f32 / u8::MAX as f32) + 0.055) / 1.055).powf(2.4);
+        let color = [c(color.0), c(color.1), c(color.2), c(color.3)];
         shape.into_iter().map(|shape|
-            ColorVertex{shape, color: color.color()}
+            ColorVertex{shape, color}
         ).collect::<Vec<_>>().try_into().unwrap()
     }
 }
@@ -124,26 +126,25 @@ impl<V: Vertex> ColorVertex<V> {
 #[repr(packed, C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct ImageVertex<V: Vertex = ShapeVertex> {
-    pub shape: V,
-    pub texture: [f32; 2],
-    pub color: [f32; 4]
+    pub color: ColorVertex<V>,
+    pub texture: [f32; 2]
 }
 
 impl<V: Vertex> Vertex for ImageVertex<V> {
     fn attributes() -> Vec<VertexFormat> {
-        [V::attributes(), vec![VertexFormat::Float32x2, VertexFormat::Float32x4]].concat()
+        [ColorVertex::<V>::attributes(), vec![VertexFormat::Float32x2]].concat()
     }
 }
 
 impl<V: Vertex> ImageVertex<V> {
-    pub fn new(shape: [V; 4], image: &Image, size: (f32, f32), color: Option<Color>) -> [ImageVertex<V>; 4] {
+    pub fn new(shape: [V; 4], image: &Arc<RgbaImage>, size: (f32, f32), color: Option<Color>) -> [ImageVertex<V>; 4] {
         let mut x = 0.0;
         let mut y = 0.0;
         let mut x2 = 1.0;
         let mut y2 = 1.0;
 
-        let wi = image.size().0 as f32;
-        let hi = image.size().1 as f32;
+        let wi = image.width() as f32;
+        let hi = image.height() as f32;
         let ws = size.0;
         let hs = size.1;
 
@@ -160,13 +161,13 @@ impl<V: Vertex> ImageVertex<V> {
             y2 = 1.0-d;
         }
 
-        let color = color.map(|c| c.color()).unwrap_or([0.0, 0.0, 0.0, 0.0]);
+        let color = ColorVertex::new(shape, color.unwrap_or_default());
 
         [
-            ImageVertex{shape: shape[0], texture: [x, y], color},
-            ImageVertex{shape: shape[1], texture: [x2, y], color},
-            ImageVertex{shape: shape[2], texture: [x, y2], color},
-            ImageVertex{shape: shape[3], texture: [x2, y2], color},
+            ImageVertex{color: color[0], texture: [x, y]},
+            ImageVertex{color: color[1], texture: [x2, y]},
+            ImageVertex{color: color[2], texture: [x, y2]},
+            ImageVertex{color: color[3], texture: [x2, y2]},
         ]
     }
 }

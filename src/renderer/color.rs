@@ -1,9 +1,8 @@
 use wgpu::{PipelineCompilationOptions, RenderPipelineDescriptor, PipelineLayoutDescriptor, DepthStencilState, MultisampleState, RenderPipeline, PrimitiveState, FragmentState, TextureFormat, BufferUsages, IndexFormat, VertexState, RenderPass, Device, Queue, VertexBufferLayout, ShaderModule};
-use wgpu_dyn_buffer::{DynamicBufferDescriptor, DynamicBuffer};
+use super::buffer::{DynamicBufferDescriptor, DynamicBuffer};
 
-use crate::shape::{Vertex, ShapeVertex, RoundedRectangleVertex, ColorVertex};
-use crate::{Area, Shape};
-use super::Color;
+use crate::{Area, Color, ShapeType};
+use super::vertex::{Vertex, ShapeVertex, RoundedRectangleVertex, ColorVertex};
 
 pub struct ColorRenderer {
     ellipse_renderer: GenericColorRenderer,
@@ -19,11 +18,11 @@ impl ColorRenderer {
         multisample: MultisampleState,
         depth_stencil: Option<DepthStencilState>,
     ) -> Self {
-        let shader = device.create_shader_module(wgpu::include_wgsl!("ellipse.wgsl"));
+        let shader = device.create_shader_module(wgpu::include_wgsl!("color/ellipse.wgsl"));
         let ellipse_renderer = GenericColorRenderer::new(device, texture_format, multisample, depth_stencil.clone(), shader, ColorVertex::<ShapeVertex>::layout());
-        let shader = device.create_shader_module(wgpu::include_wgsl!("rectangle.wgsl"));
+        let shader = device.create_shader_module(wgpu::include_wgsl!("color/rectangle.wgsl"));
         let rectangle_renderer = GenericColorRenderer::new(device, texture_format, multisample, depth_stencil.clone(), shader, ColorVertex::<ShapeVertex>::layout());
-        let shader = device.create_shader_module(wgpu::include_wgsl!("rounded_rectangle.wgsl"));
+        let shader = device.create_shader_module(wgpu::include_wgsl!("color/rounded_rectangle.wgsl"));
         let rounded_rectangle_renderer = GenericColorRenderer::new(device, texture_format, multisample, depth_stencil.clone(), shader, ColorVertex::<RoundedRectangleVertex>::layout());
         ColorRenderer{
             ellipse_renderer,
@@ -40,16 +39,17 @@ impl ColorRenderer {
         queue: &Queue,
         width: f32,
         height: f32,
-        items: Vec<(u16, Area, Shape, Color)>,
+        items: Vec<(u16, Area, ShapeType, Color)>,
     ) {
-
         let (ellipses, rects, rounded_rects) = items.into_iter().fold(
             (vec![], vec![], vec![]),
             |mut a, (z, area, shape, color)| {
                 match shape {
-                    Shape::Ellipse(stroke, size, _) => a.0.push(ColorVertex::new(ShapeVertex::new(width, height, z, area, stroke, size), color)),
-                    Shape::Rectangle(stroke, size, _) => a.1.push(ColorVertex::new(ShapeVertex::new(width, height, z, area, stroke, size), color)),
-                    Shape::RoundedRectangle(stroke, size, corner_radius, _) =>
+                    ShapeType::Ellipse(stroke, size, _) =>
+                        a.0.push(ColorVertex::new(ShapeVertex::new(width, height, z, area, stroke, size), color)),
+                    ShapeType::Rectangle(stroke, size, _) =>
+                        a.1.push(ColorVertex::new(ShapeVertex::new(width, height, z, area, stroke, size), color)),
+                    ShapeType::RoundedRectangle(stroke, size, corner_radius, _) =>
                         a.2.push(ColorVertex::new(RoundedRectangleVertex::new(width, height, z, area, stroke, size, corner_radius), color)),
                 }
                 a

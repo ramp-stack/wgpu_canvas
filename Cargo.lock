@@ -359,20 +359,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "fast_image_resize"
-version = "5.1.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d372ab3252d8f162d858d675a3d88a8c33ba24a6238837c50c8851911c7e89cd"
-dependencies = [
- "bytemuck",
- "cfg-if",
- "document-features",
- "image",
- "num-traits",
- "thiserror 1.0.69",
-]
-
-[[package]]
 name = "fdeflate"
 version = "0.3.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -577,12 +563,6 @@ name = "heck"
 version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2304e00983f87ffb38b55b444b5e3b60a884b5d30c0fca7d82fe33449bbe55ea"
-
-[[package]]
-name = "hex"
-version = "0.4.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7f24254aa9a54b5c858eaee2f5bccdb46aaf0e486a595ed5fd8f86ba55232a70"
 
 [[package]]
 name = "hexf-parse"
@@ -1760,23 +1740,11 @@ dependencies = [
 
 [[package]]
 name = "wgpu_canvas"
-version = "4.1.1"
+version = "5.0.0"
 dependencies = [
  "bytemuck",
- "fast_image_resize",
  "fontdue",
- "hex",
  "image",
- "wgpu",
- "wgpu_dyn_buffer",
-]
-
-[[package]]
-name = "wgpu_dyn_buffer"
-version = "3.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dcf33a72087e3b29723730b708d4758542a05b9bc0c1c60fa6ce76e625710873"
-dependencies = [
  "wgpu",
 ]
 

@@ -5,8 +5,8 @@ struct ShapeInput {
     @location(3) bounds: vec4<f32>,
     @location(4) z: f32,
     @location(5) stroke: f32,
-    @location(6) texture: vec2<f32>,
-    @location(7) color: vec4<f32>
+    @location(6) color: vec4<f32>
+    @location(7) texture: vec2<f32>,
 }
 
 struct VertexOutput {
@@ -15,8 +15,8 @@ struct VertexOutput {
     @location(1) @interpolate(flat) size: vec2<f32>,
     @location(2) @interpolate(flat) bounds: vec4<f32>,
     @location(3) @interpolate(flat) stroke: f32,
-    @location(4) texture: vec2<f32>,
-    @location(5) @interpolate(flat) color: vec4<f32>
+    @location(4) @interpolate(flat) color: vec4<f32>
+    @location(5) texture: vec2<f32>,
 };
 
 @vertex
@@ -31,8 +31,8 @@ fn vs_main(
 
     out.bounds = shape.bounds;
     out.stroke = shape.stroke;
-    out.texture = shape.texture;
     out.color = shape.color;
+    out.texture = shape.texture;
 
     return out;
 }
@@ -48,15 +48,29 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
        in.uv.y < in.bounds[1] || in.uv.y > in.bounds[3] {
         discard;
     }
+
+    let a = (in.size.x / 2.0);
+    let b = (in.size.y / 2.0);
+    let x = (a-(in.uv.x)) / (a - 1.0);
+    let y = (b-(in.uv.y)) / (b - 1.0);
+    let d = x*x+y*y;
+    let p = (2.0/a);
+
+    var stroke = 1.0;
     if in.stroke > 0 {
-        if in.uv.x > in.stroke && in.uv.x < in.size.x-in.stroke &&
-           in.uv.y > in.stroke && in.uv.y < in.size.y-in.stroke {
-            discard;
-        }
+        let sa = (in.size.x-(in.stroke*2.0)) / 2.0;
+        let sb = (in.size.y-(in.stroke*2.0)) / 2.0;
+        let sx = (a-(in.uv.x)) / (sa - 1.0);
+        let sy = (b-(in.uv.y)) / (sb - 1.0);
+        let sd = sx*sx+sy*sy;
+        stroke = smoothstep(1.0, 1.0+p, sd);
     }
+
+    var alpha = (1.0-smoothstep(1.0, 1.0+p, d)) * stroke;
+
     var color = textureSample(t_diffuse, s_diffuse, in.texture);
     if in.color[3] > 0.0 {
         color = vec4<f32>(in.color[0], in.color[1], in.color[2], in.color[3]*color[3]);
     }
-    return color;
+    return vec4<f32>(color[0], color[1], color[2], color[3]*alpha);
 }
