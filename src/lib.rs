@@ -11,8 +11,12 @@ mod canvas;
 pub use canvas::Canvas;
 
 mod text;
-
 pub use text::{Font, Text, Span, Align, Cursor};
+//TODO: replace shape enum with a single definition with optional corner radius
+//Squash rectangles into rounded rectangles. Ignore corner radius on Ellipse
+mod shape;
+pub use shape::Shape as ShapeType;
+
 pub use image::RgbaImage;
 
 #[derive(Default, Debug, Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord)]
@@ -36,13 +40,6 @@ pub enum Item {
     Shape(Shape),
     Image(Image),
     Text(Text),
-}
-
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum ShapeType {
-    Ellipse(f32, (f32, f32), f32),
-    Rectangle(f32, (f32, f32), f32),
-    RoundedRectangle(f32, (f32, f32), f32, f32),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]

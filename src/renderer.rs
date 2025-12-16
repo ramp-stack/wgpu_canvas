@@ -7,14 +7,9 @@ use color::ColorRenderer;
 mod image;
 use image::ImageRenderer;
 mod atlas;
+pub use atlas::Atlas;
 
 use crate::{Area, Item};
-
-#[derive(Default)]
-pub struct Atlas {
-    image: atlas::ImageAtlas,
-    text: atlas::TextAtlas,
-}
 
 pub struct Renderer {
     color_renderer: ColorRenderer,
@@ -50,9 +45,6 @@ impl Renderer {
         atlas: &mut Atlas,
         items: Vec<(Area, Item)>,
     ) {
-        atlas.text.trim();
-        atlas.image.trim();
-
         let (colors, images) = items.into_iter().enumerate().fold((vec![], vec![]), |mut a, (i, (area, item))| {
             let z = i as u16;
             match item {

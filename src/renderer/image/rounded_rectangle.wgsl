@@ -18,7 +18,8 @@ struct VertexOutput {
     @location(3) @interpolate(flat) stroke: f32,
     @location(4) @interpolate(flat) corner_radius: f32,
     @location(5) @interpolate(flat) color: vec4<f32>,
-    @location(6) texture: vec2<f32>
+    @location(6) texture: vec2<f32>,
+    @location(7) vertex_position: vec2<f32>
 };
 
 @vertex
@@ -36,6 +37,7 @@ fn vs_main(
     out.corner_radius = shape.corner_radius;
     out.color = shape.color;
     out.texture = shape.texture;
+	out.vertex_position = shape.position;
 
     return out;
 }
@@ -66,17 +68,15 @@ fn alpha(uv: vec2<f32>, size: vec2<f32>, stroke: f32, cr: f32) -> f32 {
         }
     }
 
-    let a = (size.x / 2.0);
-    let b = (size.y / 2.0);
-    let dx = x / (cr - 1.0);
-    let dy = y / (cr - 1.0);
+    let dx = x / cr;
+    let dy = y / cr;
     let d = dx*dx+dy*dy;
     let p = (2.0/cr);
 
     var s = 1.0;
     if stroke > 0 && stroke < cr {
-        let sx = x / (cr-stroke-0.5);
-        let sy = y / (cr-stroke-0.5);
+        let sx = x / (cr-stroke-0.25);
+        let sy = y / (cr-stroke-0.25);
         let sd = sx*sx+sy*sy;
         s = smoothstep(1.0, 1.0+p, sd);
     }
@@ -91,8 +91,8 @@ var s_diffuse: sampler;
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
-    if in.uv.x < in.bounds[0] || in.uv.x > in.bounds[2] ||
-       in.uv.y < in.bounds[1] || in.uv.y > in.bounds[3] {
+	if in.vertex_position.x < in.bounds[0] || in.vertex_position.x > in.bounds[2] ||
+       in.vertex_position.y > in.bounds[1] || in.vertex_position.y < in.bounds[3] {
         discard;
     }
     var color = textureSample(t_diffuse, s_diffuse, in.texture);

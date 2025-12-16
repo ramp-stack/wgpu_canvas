@@ -15,6 +15,7 @@ pub struct Canvas {
     msaa_view: Option<TextureView>,
     depth_view: TextureView,
     renderer: Renderer,
+    old: Vec<(Area, Item)>
 }
 
 impl Canvas {
@@ -95,6 +96,7 @@ impl Canvas {
             msaa_view,
             depth_view,
             renderer,
+            old: vec![]
         }
     }
 
@@ -124,6 +126,10 @@ impl Canvas {
     ///
     /// Handles render pass setup, MSAA, and depth buffer automatically.
     pub fn draw(&mut self, atlas: &mut Atlas, items: Vec<(Area, Item)>) {
+        atlas.trim();
+        //TODO: Get a better diff system, one that probably diffs on the vertices bytes too
+        if self.old == items {return;}
+        self.old = items.clone();
         self.renderer.prepare(
             &self.device,
             &self.queue,

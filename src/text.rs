@@ -156,7 +156,7 @@ impl Text {
                                 current_line.2.iter_mut().for_each(|ch| ch.1.1 += current_line.1);
                                 lines.push(current_line.take());
                             }
-                            let y = lines.iter().fold(0.0, |h, l| h + l.1) - ymin - h + lm.descent * s.font_size;
+                            let y = lines.iter().fold(0.0, |h, l| h + l.1) - ymin - h + lm.descent;
                             current_line.2.push(Character(*c, (current_line.0 + xmin, y, *w, *h),
                                 s.font.clone(), s.color, lh, *aw,
                             ));
@@ -165,7 +165,7 @@ impl Text {
                         }
                     } else {
                         for (c, (xmin, ymin, w, h), aw) in glyphs.iter() {
-                            let y = lines.iter().fold(0.0, |h, l| h + l.1) - ymin - h + lm.descent * s.font_size;
+                            let y = lines.iter().fold(0.0, |h, l| h + l.1) - ymin - h + lm.descent;
                             current_line.2.push(Character(*c, (current_line.0 + xmin, y, *w, *h),
                                 s.font.clone(), s.color, lh, *aw,
                             ));

@@ -3,6 +3,7 @@
 use wgpu::{VertexBufferLayout, VertexStepMode, BufferAddress, VertexAttribute, VertexFormat};
 
 use crate::{RgbaImage, Area, Color};
+use crate::shape::Shape;
 use std::sync::Arc;
 
 pub trait Vertex: std::fmt::Debug + bytemuck::Pod + bytemuck::Zeroable{
@@ -47,33 +48,43 @@ impl Vertex for ShapeVertex {
 }
 
 impl ShapeVertex {
-    pub fn new(width: f32, height: f32, z: u16, area: Area, stroke: f32, size: (f32, f32)) -> [ShapeVertex; 4] {
+    pub fn transform_point(width: f32, height: f32, p: [f32; 2]) -> [f32; 2] {
         let w = |x: f32| ((x / width) * 2.0) - 1.0;
         let h = |y: f32| 1.0 - ((y / height) * 2.0);
+        [w(p[0]), h(p[1])]
+    }
+    pub fn transform(width: f32, height: f32, p: [[f32; 2]; 4]) -> [[f32; 2]; 4] {
+        [
+            Self::transform_point(width, height, p[0]),
+            Self::transform_point(width, height, p[1]),
+            Self::transform_point(width, height, p[2]),
+            Self::transform_point(width, height, p[3])
+        ]
+    }
 
-        let x = w(area.offset.0);
-        let y = h(area.offset.1);
-        let x2 = w(area.offset.0 + size.0);
-        let y2 = h(area.offset.1 + size.1);
+    pub fn new(width: f32, height: f32, z: u16, area: Area, shape: Shape) -> [ShapeVertex; 4] {
+        let op = shape.positions(area.offset);
+        let positions = Self::transform(width, height, op);
+        let size = shape.wh();
 
-        let stroke = stroke.min(size.0.min(size.1));
-
-        let size = [size.0, size.1];
+        let stroke = shape.stroke();
 
         let bounds = area.bounds.unwrap_or((0.0, 0.0, width, height));
         let bx = bounds.0 - area.offset.0;
         let by = bounds.1 - area.offset.1;
         let bx2 = bx + bounds.2;
         let by2 = by + bounds.3;
+        let [bx, by] = Self::transform_point(width, height, [bx, by]);
+        let [bx2, by2] = Self::transform_point(width, height, [bx2, by2]);
         let bounds = [bx, by, bx2, by2];
 
         let z_index = z as f32 / u16::MAX as f32;
 
         [
-            ShapeVertex{uv: [0.0, 0.0], position: [x, y], size, bounds, z_index, stroke},
-            ShapeVertex{uv: [size[0], 0.0], position: [x2, y], size, bounds, z_index, stroke},
-            ShapeVertex{uv: [0.0, size[1]], position: [x, y2], size, bounds, z_index, stroke},
-            ShapeVertex{uv: [size[0], size[1]], position: [x2, y2], size, bounds, z_index, stroke}
+            ShapeVertex{uv: [0.0, 0.0], position: positions[0], size, bounds, z_index, stroke},
+            ShapeVertex{uv: [size[0], 0.0], position: positions[1], size, bounds, z_index, stroke},
+            ShapeVertex{uv: [0.0, size[1]], position: positions[2], size, bounds, z_index, stroke},
+            ShapeVertex{uv: [size[0], size[1]], position: positions[3], size, bounds, z_index, stroke}
         ]
     }
 }
@@ -92,8 +103,8 @@ impl Vertex for RoundedRectangleVertex {
 }
 
 impl RoundedRectangleVertex {
-    pub fn new(width: f32, height: f32, z: u16, area: Area, stroke: f32, size: (f32, f32), corner_radius: f32) -> [RoundedRectangleVertex; 4] {
-        ShapeVertex::new(width, height, z, area, stroke, size).into_iter().map(|shape|
+    pub fn new(width: f32, height: f32, z: u16, area: Area, shape: Shape, corner_radius: f32) -> [RoundedRectangleVertex; 4] {
+        ShapeVertex::new(width, height, z, area, shape).into_iter().map(|shape|
             RoundedRectangleVertex{shape, corner_radius}
         ).collect::<Vec<_>>().try_into().unwrap()
     }
@@ -115,7 +126,7 @@ impl<V: Vertex> Vertex for ColorVertex<V> {
 
 impl<V: Vertex> ColorVertex<V> {
     pub fn new(shape: [V; 4], color: Color) -> [ColorVertex<V>; 4] {
-        let c = |f: u8| (((f as f32 / u8::MAX as f32) + 0.055) / 1.055).powf(2.4);
+        let c = |f: u8| if f == 0 {0.0} else {(((f as f32 / u8::MAX as f32) + 0.055) / 1.055).powf(2.4)};
         let color = [c(color.0), c(color.1), c(color.2), c(color.3)];
         shape.into_iter().map(|shape|
             ColorVertex{shape, color}

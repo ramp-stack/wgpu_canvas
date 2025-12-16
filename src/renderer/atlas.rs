@@ -6,6 +6,18 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 #[derive(Default, Debug)]
+pub struct Atlas {
+    pub(crate) image: ImageAtlas,
+    pub(crate) text: TextAtlas,
+}
+impl Atlas {
+    pub(crate) fn trim(&mut self) {
+        self.image.trim();
+        self.text.trim();
+    }
+}
+
+#[derive(Default, Debug)]
 pub struct ImageAtlas(Vec<(Arc<RgbaImage>, Arc<BindGroup>)>);
 
 impl ImageAtlas {
@@ -88,7 +100,7 @@ impl ImageAtlas {
 type ImageMap = HashMap<char, Option<Arc<RgbaImage>>>;
 type Offset = (f32, f32);
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct TextAtlas{
     fonts: Vec<(Arc<Font>, ImageMap)>
 }
