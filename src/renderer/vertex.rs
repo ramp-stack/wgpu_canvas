@@ -70,12 +70,8 @@ impl ShapeVertex {
         let stroke = shape.stroke();
 
         let bounds = area.bounds.unwrap_or((0.0, 0.0, width, height));
-        let bx = bounds.0 - area.offset.0;
-        let by = bounds.1 - area.offset.1;
-        let bx2 = bx + bounds.2;
-        let by2 = by + bounds.3;
-        let [bx, by] = Self::transform_point(width, height, [bx, by]);
-        let [bx2, by2] = Self::transform_point(width, height, [bx2, by2]);
+        let [bx, by] = Self::transform_point(width, height, [bounds.0, bounds.1]);
+        let [bx2, by2] = Self::transform_point(width, height, [bounds.2, bounds.3]);
         let bounds = [bx, by, bx2, by2];
 
         let z_index = z as f32 / u16::MAX as f32;

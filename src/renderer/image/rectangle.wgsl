@@ -46,7 +46,7 @@ var s_diffuse: sampler;
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
-	if in.vertex_position.x < in.bounds[0] || in.vertex_position.x > in.bounds[2] ||
+    if in.vertex_position.x < in.bounds[0] || in.vertex_position.x > in.bounds[2] ||
        in.vertex_position.y > in.bounds[1] || in.vertex_position.y < in.bounds[3] {
         discard;
     }
