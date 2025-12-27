@@ -119,6 +119,7 @@ impl Canvas {
                 self.msaa_view = Some(Self::create_msaa_view(&self.device, &self.config));
             }
             self.depth_view = Self::create_depth_view(&self.device, &self.config);
+            self.old = vec![];
         }
     }
 

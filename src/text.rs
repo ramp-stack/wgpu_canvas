@@ -147,7 +147,7 @@ impl Text {
                     }).collect();
 
                     if let Some(width) = self.width {
-                        if word_width <= width || self.max_lines.is_none() && current_line.0 + word_width > width && !current_line.2.is_empty() {
+                        if word_width >= width || self.max_lines.is_none() && current_line.0 + word_width > width && !current_line.2.is_empty() {
                             current_line.2.iter_mut().for_each(|ch| ch.1.1 += current_line.1);
                             lines.push(current_line.take());
                         }
