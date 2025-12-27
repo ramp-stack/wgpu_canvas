@@ -71,7 +71,7 @@ impl ShapeVertex {
 
         let bounds = area.bounds.unwrap_or((0.0, 0.0, width, height));
         let [bx, by] = Self::transform_point(width, height, [bounds.0, bounds.1]);
-        let [bx2, by2] = Self::transform_point(width, height, [bounds.2, bounds.3]);
+        let [bx2, by2] = Self::transform_point(width, height, [bounds.0+bounds.2, bounds.1+bounds.3]);
         let bounds = [bx, by, bx2, by2];
 
         let z_index = z as f32 / u16::MAX as f32;
