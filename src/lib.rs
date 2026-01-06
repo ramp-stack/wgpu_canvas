@@ -11,7 +11,7 @@ mod canvas;
 pub use canvas::Canvas;
 
 mod text;
-pub use text::{Font, Text, Span, Align, Cursor};
+pub use text::{Font, Text, Span, Align};
 //TODO: replace shape enum with a single definition with optional corner radius
 //Squash rectangles into rounded rectangles. Ignore corner radius on Ellipse
 mod shape;

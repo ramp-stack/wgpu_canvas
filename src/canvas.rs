@@ -138,7 +138,6 @@ impl Canvas {
             self.config.height as f32,
             atlas, items
         );
-
         let output = self.surface.get_current_texture().unwrap();
         let frame_view = output.texture.create_view(&TextureViewDescriptor::default());
         let mut encoder = self.device.create_command_encoder(&CommandEncoderDescriptor::default());
