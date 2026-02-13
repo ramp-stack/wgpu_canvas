@@ -274,8 +274,7 @@ impl Text {
 }
 
 #[derive(Debug, Clone)]
-pub(crate) struct Character(pub char, pub (f32, f32, f32, f32), pub Arc<Font>, pub Color, pub f32, pub f32);
-
+pub struct Character(pub char, pub (f32, f32, f32, f32), pub Arc<Font>, pub Color, pub f32, pub f32);
 #[derive(Debug, Clone, Default)]
 pub(crate) struct Line(pub f32, pub f32, pub Vec<Character>);
 impl Line {
