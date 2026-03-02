@@ -161,6 +161,8 @@ impl Text {
         self.cursor = Some(index);
     }
 
+    pub fn len(&self) -> usize {self.lines().len()} 
+
     pub(crate) fn lines(&self) -> Vec<Line> {
         let mut hasher = DefaultHasher::new();
         self.hash(&mut hasher);
