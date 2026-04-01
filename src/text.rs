@@ -175,7 +175,13 @@ impl Text {
         self.spans.iter().for_each(|s| {
             let lm = s.font.horizontal_line_metrics(s.font_size).unwrap();
             let lh = s.line_height.unwrap_or(lm.new_line_size);
-            s.text.split('\n').for_each(|raw_line| {
+            s.text.split('\n').enumerate().for_each(|(i, raw_line)| {
+                if i > 0 {
+                    if current_line.2.is_empty() { current_line.1 = current_line.1.max(lh); }
+                    current_line.2.iter_mut().for_each(|ch| ch.1.1 += current_line.1);
+                    lines.push(current_line.take());
+                }
+
                 raw_line.split_inclusive(|c: char| c.is_whitespace()).for_each(|word| {
                     let mut word_width = 0.0;
                     let glyphs: Vec<_> = word.chars().map(|c| {
@@ -214,9 +220,9 @@ impl Text {
                     }
 
                 });
-                if current_line.2.is_empty() { current_line.1 = current_line.1.max(lh); }
-                current_line.2.iter_mut().for_each(|ch| ch.1.1 += current_line.1);
-                lines.push(current_line.take());
+                // if current_line.2.is_empty() { current_line.1 = current_line.1.max(lh); }
+                // current_line.2.iter_mut().for_each(|ch| ch.1.1 += current_line.1);
+                // lines.push(current_line.take());
             })
         });
 
