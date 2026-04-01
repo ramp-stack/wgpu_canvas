@@ -119,6 +119,7 @@ impl Canvas {
                 self.msaa_view = Some(Self::create_msaa_view(&self.device, &self.config));
             }
             self.depth_view = Self::create_depth_view(&self.device, &self.config);
+            self.old = vec![];
         }
     }
 
@@ -137,7 +138,6 @@ impl Canvas {
             self.config.height as f32,
             atlas, items
         );
-
         let output = self.surface.get_current_texture().unwrap();
         let frame_view = output.texture.create_view(&TextureViewDescriptor::default());
         let mut encoder = self.device.create_command_encoder(&CommandEncoderDescriptor::default());
@@ -147,7 +147,12 @@ impl Canvas {
                 view: if SAMPLE_COUNT > 1 {self.msaa_view.as_ref().unwrap()} else {&frame_view},
                 resolve_target: if SAMPLE_COUNT > 1 {Some(&frame_view)} else {None},
                 ops: Operations {
-                    load: LoadOp::Clear(wgpu::Color::BLACK),
+                    load: LoadOp::Clear(wgpu::Color {
+                        r: 0.0,
+                        g: 0.0,
+                        b: 0.0,
+                        a: 0.0,
+                    }),
                     store: StoreOp::Store,
                 },
             })],

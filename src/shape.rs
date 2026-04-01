@@ -51,7 +51,7 @@ impl Shape {
         }
     }
 
-    pub(crate) fn positions(&self, offset: (f32, f32)) -> [[f32; 2]; 4] {
+    pub fn positions(&self, offset: (f32, f32)) -> [[f32; 2]; 4] {
         let theta = self.angle().to_radians();
         let cos = theta.cos();
         let sin = theta.sin();
