@@ -4,20 +4,15 @@
 
 Perfect for Rust-first game engines, UI toolkits, and creative coding frameworks.
 
-## ✨ Features
+## Features
 
 - Draw shapes (rectangles, ellipses) with ease
 - Render images and textures onto a canvas
 - Text rendering powered by GPU font caching
 - Built directly on top of `wgpu` for maximum performance
-- 100% Rust
 
-## 🚀 Getting Started
+## Discord
 
-Add `wgpu_canvas` to your `Cargo.toml`:
+https://discord.gg/53ERRpS4S4
 
-[dependencies]
-wgpu_canvas = "1.0.0"
-
-## 📚 Documentation
-Full documentation is available at https://docs.rs/wgpu_canvas
+Join the Discord server to ask questions, discuss development, or share projects.
