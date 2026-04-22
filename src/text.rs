@@ -42,7 +42,7 @@ pub enum Align {
     Center, 
     Right
 }
-
+ 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Span{
     /// The text content.  
