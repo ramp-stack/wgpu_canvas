@@ -3,24 +3,6 @@ WGPU_CANVAS - API REFERENCE
 A 2D WGPU renderer API for drawing text, shapes, and images.
 ================================================================
 
-[package]
-  name    = "wgpu_canvas"
-  version = "5.0.8"
-
-FEATURES
-  default = ["canvas", "renderer"]
-  canvas   — enables Canvas (pulls in renderer)
-  renderer — enables Renderer + Atlas (requires wgpu + bytemuck)
-
-  Disable default features if you only need the data-side types
-  (Text, Shape, Image, Color) without any GPU code.
-
-DEPENDENCIES
-  wgpu       (optional, renderer feature)
-  bytemuck   (optional, renderer feature)
-  image      — pixel image types (RgbaImage)
-  fontdue    — font rasterisation
-  lazy_static — cached text layout lines
 
 
 ================================================================
