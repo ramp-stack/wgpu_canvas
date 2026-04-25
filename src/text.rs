@@ -83,11 +83,8 @@ impl Span {
 #[derive(Debug, Clone, PartialEq)]
 pub struct Text {
     pub spans: Vec<Span>,
-    /// Optional maximum width.  
     pub width: Option<f32>,
-    /// Horizontal alignment of the text.
     pub align: Align,
-    /// Optional cursor position for editable or interactive text.
     pub cursor: Option<usize>,
     pub max_lines: Option<u32>,
 }

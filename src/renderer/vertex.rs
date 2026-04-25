@@ -67,10 +67,6 @@ impl ShapeVertex {
         let positions = Self::transform(width, height, op);
         let size = shape.wh();
         let stroke = shape.stroke();
-        ///! FIX!
-        // area.bounds is (x0, y0, x1, y1) — two corners, not (x, y, w, h).
-        // The old code did bounds.0+bounds.2 / bounds.1+bounds.3 which treated
-        // x1,y1 as width,height and produced a far-corner 2x too large.
         let bounds = area.bounds.unwrap_or((0.0, 0.0, width, height));
         let [bx,  by]  = Self::transform_point(width, height, [bounds.0, bounds.1]);
         let [bx2, by2] = Self::transform_point(width, height, [bounds.2, bounds.3]);
