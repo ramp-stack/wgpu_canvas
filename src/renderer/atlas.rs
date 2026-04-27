@@ -22,7 +22,7 @@ pub struct ImageAtlas(Vec<(Arc<RgbaImage>, Arc<BindGroup>)>);
 
 impl ImageAtlas {
     pub fn trim(&mut self) {
-        self.0 = self.0.drain(..).filter(|(i, _)| (Arc::strong_count(i) > 1)).collect();
+        self.0 = self.0.drain(..).filter(|(i, _)| Arc::strong_count(i) > 1).collect();
     }
 
     pub fn get(
@@ -107,7 +107,7 @@ pub struct TextAtlas{
 
 impl TextAtlas {
     pub fn trim(&mut self) {
-        self.fonts = self.fonts.drain(..).filter(|(k, _)| (Arc::strong_count(k) > 1)).collect();
+        self.fonts = self.fonts.drain(..).filter(|(k, _)| Arc::strong_count(k) > 1).collect();
     }
 
     fn get_font(&mut self, font: &Arc<Font>) -> &mut HashMap<char, Option<Arc<RgbaImage>>> {

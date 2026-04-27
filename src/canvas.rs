@@ -1,14 +1,13 @@
 use wgpu::{RenderPassDepthStencilAttachment, RenderPassColorAttachment, CommandEncoderDescriptor, TextureViewDescriptor, RequestAdapterOptions, SurfaceConfiguration, RenderPassDescriptor, InstanceDescriptor, DepthStencilState, TextureDescriptor, TextureDimension, MultisampleState, DeviceDescriptor, PowerPreference, CompareFunction, WindowHandle, DepthBiasState, TextureUsages, TextureFormat, StencilState, TextureView, Operations, Instance, Features, Extent3d, Surface, StoreOp, LoadOp, Limits, Device, Queue, Trace};
 
-use std::sync::Arc;
-
 use crate::{Renderer, Atlas, Area, Item};
 
 const SAMPLE_COUNT: u32 = 4;
 
-pub struct Canvas {
+pub struct Canvas<'surface> {
     _instance: Instance,
-    surface: Surface<'static>,
+    surface: Surface<'surface>,
+    atlas: Atlas,
     device: Device,
     queue: Queue,
     config: SurfaceConfiguration,
@@ -18,11 +17,11 @@ pub struct Canvas {
     old: Vec<(Area, Item)>
 }
 
-impl Canvas {
+impl<'surface> Canvas<'surface> {
     /// Creates a new `Canvas` for the given window and size.
     ///
     /// Returns the `Canvas` and its initial `(width, height)`
-    pub async fn new<W: WindowHandle + 'static>(window: W, width: u32, height: u32) -> Self {
+    pub async fn new<W: WindowHandle + 'surface>(window: W, width: u32, height: u32) -> Self {
         let instance = Instance::new(&InstanceDescriptor::default());
 
         let surface = instance.create_surface(window).unwrap();
@@ -90,6 +89,7 @@ impl Canvas {
         Canvas{
             _instance: instance,
             surface,
+            atlas: Atlas::default(),
             device,
             queue,
             config,
@@ -103,13 +103,7 @@ impl Canvas {
     /// Resizes the canvas to the given dimensions.
     ///
     /// Returns the updated `(width, height)`.
-    pub fn resize<W: WindowHandle + 'static>(
-        &mut self, _new_window: Option<Arc<W>>, width: u32, height: u32
-    ) {
-        // if let Some(new_window) = new_window {
-        //     self.surface = self.instance.create_surface(new_window).unwrap();
-        // }
-
+    pub fn resize(&mut self, width: u32, height: u32) {
         if width > 0 && height > 0 {
             let limits = self.device.limits();
             self.config.width = width.min(limits.max_texture_dimension_2d);
@@ -125,8 +119,8 @@ impl Canvas {
     /// Draws the given `items` using the provided `atlas`.
     ///
     /// Handles render pass setup, MSAA, and depth buffer automatically.
-    pub fn draw(&mut self, atlas: &mut Atlas, items: Vec<(Area, Item)>) {
-        atlas.trim();
+    pub fn draw(&mut self, items: Vec<(Area, Item)>) {
+        self.atlas.trim();
         //TODO: Get a better diff system, one that probably diffs on the vertices bytes too
         if self.old == items {return;}
         self.old = items.clone();
@@ -135,7 +129,7 @@ impl Canvas {
             &self.queue,
             self.config.width as f32,
             self.config.height as f32,
-            atlas, items
+            &mut self.atlas, items
         );
 
         let output = self.surface.get_current_texture().unwrap();
