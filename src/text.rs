@@ -1,8 +1,14 @@
 use super::Color;
 use std::ops::Deref;
-use std::sync::Arc;
+use std::sync::{Mutex, Arc};
+use std::collections::HashMap;
+use std::hash::{DefaultHasher, Hasher, Hash};
+use lazy_static::lazy_static;
 
-pub type Cursor = usize;
+
+lazy_static! {
+    static ref TEXT_LINES: Arc<Mutex<HashMap<u64, Vec<Line>>>> = Arc::default();
+}
 
 #[derive(Debug, Clone)]
 pub struct Font(pub fontdue::Font);
@@ -23,6 +29,12 @@ impl PartialEq for Font {
     }
 }
 
+impl Hash for Font {
+    fn hash<H: Hasher>(&self, hasher: &mut H) {
+        self.file_hash().hash(hasher)
+    }
+}
+
 /// Text alignment enumerator.
 #[derive(Debug, Clone, Copy, PartialEq, Hash)]
 pub enum Align {
@@ -30,7 +42,7 @@ pub enum Align {
     Center, 
     Right
 }
-
+ 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Span{
     /// The text content.  
@@ -47,6 +59,17 @@ pub struct Span{
     pub kerning: f32,
 }
 
+impl Hash for Span {
+    fn hash<H: Hasher>(&self, hasher: &mut H) {
+        self.text.hash(hasher);
+        self.font_size.to_bits().hash(hasher);
+        if let Some(l) = self.line_height {l.to_bits().hash(hasher);}
+        self.font.hash(hasher);
+        self.color.hash(hasher);
+        self.kerning.to_bits().hash(hasher);
+    }
+}
+
 impl Span {
     pub fn new(text: String, font_size: f32, line_height: Option<f32>, font: Arc<Font>, color: Color, kerning: f32) -> Self {
         Span{text, font_size, line_height, font, color, kerning}
@@ -59,16 +82,21 @@ impl Span {
 /// Supports layout, alignment, scaling, and cursor placement for editing or interaction.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Text {
-    /// A vector of styled [`Span`] segments that make up the text content.
     pub spans: Vec<Span>,
-    /// Optional maximum width.  
     pub width: Option<f32>,
-    /// Horizontal alignment of the text.
     pub align: Align,
-    /// Optional cursor position for editable or interactive text.
-    pub cursor: Option<Cursor>,
-    /// Optional maximum number of rendered lines.
+    pub cursor: Option<usize>,
     pub max_lines: Option<u32>,
+}
+
+impl Hash for Text {
+    fn hash<H: Hasher>(&self, hasher: &mut H) {
+        self.spans.hash(hasher);
+        if let Some(w) = self.width {w.to_bits().hash(hasher);}
+        self.align.hash(hasher);
+        if let Some(c) = self.cursor {c.hash(hasher);}
+        if let Some(max) = self.max_lines {max.hash(hasher);}
+    }
 }
 
 impl Text {
@@ -130,13 +158,27 @@ impl Text {
         self.cursor = Some(index);
     }
 
+    pub fn len(&self) -> usize {self.lines().len()} 
+
     pub(crate) fn lines(&self) -> Vec<Line> {
+        let mut hasher = DefaultHasher::new();
+        self.hash(&mut hasher);
+        TEXT_LINES.lock().unwrap().entry(hasher.finish()).or_insert_with(|| self.inner_lines()).clone()
+    }
+
+    pub(crate) fn inner_lines(&self) -> Vec<Line> {
         let mut lines = Vec::new();
         let mut current_line = Line::default();
         self.spans.iter().for_each(|s| {
             let lm = s.font.horizontal_line_metrics(s.font_size).unwrap();
             let lh = s.line_height.unwrap_or(lm.new_line_size);
-            s.text.split('\n').for_each(|raw_line| {
+            s.text.split('\n').enumerate().for_each(|(i, raw_line)| {
+                if i > 0 {
+                    if current_line.2.is_empty() { current_line.1 = current_line.1.max(lh); }
+                    current_line.2.iter_mut().for_each(|ch| ch.1.1 += current_line.1);
+                    lines.push(current_line.take());
+                }
+
                 raw_line.split_inclusive(|c: char| c.is_whitespace()).for_each(|word| {
                     let mut word_width = 0.0;
                     let glyphs: Vec<_> = word.chars().map(|c| {
@@ -147,7 +189,7 @@ impl Text {
                     }).collect();
 
                     if let Some(width) = self.width {
-                        if word_width <= width || self.max_lines.is_none() && current_line.0 + word_width > width && !current_line.2.is_empty() {
+                        if word_width >= width || self.max_lines.is_none() && current_line.0 + word_width > width && !current_line.2.is_empty() {
                             current_line.2.iter_mut().for_each(|ch| ch.1.1 += current_line.1);
                             lines.push(current_line.take());
                         }
@@ -175,9 +217,9 @@ impl Text {
                     }
 
                 });
-                if current_line.2.is_empty() { current_line.1 = current_line.1.max(lh); }
-                current_line.2.iter_mut().for_each(|ch| ch.1.1 += current_line.1);
-                lines.push(current_line.take());
+                // if current_line.2.is_empty() { current_line.1 = current_line.1.max(lh); }
+                // current_line.2.iter_mut().for_each(|ch| ch.1.1 += current_line.1);
+                // lines.push(current_line.take());
             })
         });
 
@@ -237,8 +279,7 @@ impl Text {
 }
 
 #[derive(Debug, Clone)]
-pub(crate) struct Character(pub char, pub (f32, f32, f32, f32), pub Arc<Font>, pub Color, pub f32, pub f32);
-
+pub struct Character(pub char, pub (f32, f32, f32, f32), pub Arc<Font>, pub Color, pub f32, pub f32);
 #[derive(Debug, Clone, Default)]
 pub(crate) struct Line(pub f32, pub f32, pub Vec<Character>);
 impl Line {

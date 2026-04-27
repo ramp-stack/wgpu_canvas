@@ -11,7 +11,7 @@ mod canvas;
 pub use canvas::Canvas;
 
 mod text;
-pub use text::{Font, Text, Span, Align, Cursor};
+pub use text::{Font, Text, Span, Align, Character};
 //TODO: replace shape enum with a single definition with optional corner radius
 //Squash rectangles into rounded rectangles. Ignore corner radius on Ellipse
 mod shape;
@@ -28,11 +28,17 @@ pub struct Shape {
     pub color: Color
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Clone, PartialEq)]
 pub struct Image {
     pub shape: ShapeType,
     pub image: Arc<RgbaImage>,
     pub color: Option<Color>
+}
+
+impl std::fmt::Debug for Image {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Image").field("shape", &self.shape).field("image", &"Arc<RgbaImage>").field("color", &self.color).finish()
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]

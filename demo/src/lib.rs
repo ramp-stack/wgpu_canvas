@@ -94,11 +94,9 @@ impl Application for Ramp {
                     }).collect();
                     self.canvas.draw(&mut self.atlas, scaled);
                 },
-                lifetime => {println!("Lifetime {:?}", lifetime);}
+                lifetime => {},
             },
-            Event::Input(input) => match input {
-                input => {println!("I got input: {:?}", input);}
-            }
+            Event::Input(input) => {}
         }
     }
 }

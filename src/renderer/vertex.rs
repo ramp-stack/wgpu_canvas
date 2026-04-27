@@ -66,21 +66,19 @@ impl ShapeVertex {
         let op = shape.positions(area.offset);
         let positions = Self::transform(width, height, op);
         let size = shape.wh();
-
         let stroke = shape.stroke();
-
         let bounds = area.bounds.unwrap_or((0.0, 0.0, width, height));
-        let [bx, by] = Self::transform_point(width, height, [bounds.0, bounds.1]);
+        let [bx,  by]  = Self::transform_point(width, height, [bounds.0, bounds.1]);
         let [bx2, by2] = Self::transform_point(width, height, [bounds.2, bounds.3]);
         let bounds = [bx, by, bx2, by2];
 
         let z_index = z as f32 / u16::MAX as f32;
 
         [
-            ShapeVertex{uv: [0.0, 0.0], position: positions[0], size, bounds, z_index, stroke},
-            ShapeVertex{uv: [size[0], 0.0], position: positions[1], size, bounds, z_index, stroke},
-            ShapeVertex{uv: [0.0, size[1]], position: positions[2], size, bounds, z_index, stroke},
-            ShapeVertex{uv: [size[0], size[1]], position: positions[3], size, bounds, z_index, stroke}
+            ShapeVertex{uv: [0.0, 0.0],         position: positions[0], size, bounds, z_index, stroke},
+            ShapeVertex{uv: [size[0], 0.0],      position: positions[1], size, bounds, z_index, stroke},
+            ShapeVertex{uv: [0.0, size[1]],      position: positions[2], size, bounds, z_index, stroke},
+            ShapeVertex{uv: [size[0], size[1]],  position: positions[3], size, bounds, z_index, stroke},
         ]
     }
 }
@@ -105,7 +103,6 @@ impl RoundedRectangleVertex {
         ).collect::<Vec<_>>().try_into().unwrap()
     }
 }
-
 
 #[repr(packed, C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
@@ -145,12 +142,12 @@ impl<V: Vertex> Vertex for ImageVertex<V> {
 
 impl<V: Vertex> ImageVertex<V> {
     pub fn new(shape: [V; 4], image: &Arc<RgbaImage>, size: (f32, f32), color: Option<Color>) -> [ImageVertex<V>; 4] {
-        let mut x = 0.0;
-        let mut y = 0.0;
+        let mut x  = 0.0;
+        let mut y  = 0.0;
         let mut x2 = 1.0;
         let mut y2 = 1.0;
 
-        let wi = image.width() as f32;
+        let wi = image.width()  as f32;
         let hi = image.height() as f32;
         let ws = size.0;
         let hs = size.1;
@@ -159,21 +156,21 @@ impl<V: Vertex> ImageVertex<V> {
         let hr = hs / hi;
 
         if hr > wr {
-            let d = (1.0-(wr / hr)) / 2.0;
-            x = d;
-            x2 = 1.0-d;
+            let d = (1.0 - (wr / hr)) / 2.0;
+            x  = d;
+            x2 = 1.0 - d;
         } else {
-            let d = (1.0-(hr / wr)) / 2.0;
-            y = d;
-            y2 = 1.0-d;
+            let d = (1.0 - (hr / wr)) / 2.0;
+            y  = d;
+            y2 = 1.0 - d;
         }
 
         let color = ColorVertex::new(shape, color.unwrap_or_default());
 
         [
-            ImageVertex{color: color[0], texture: [x, y]},
+            ImageVertex{color: color[0], texture: [x,  y]},
             ImageVertex{color: color[1], texture: [x2, y]},
-            ImageVertex{color: color[2], texture: [x, y2]},
+            ImageVertex{color: color[2], texture: [x,  y2]},
             ImageVertex{color: color[3], texture: [x2, y2]},
         ]
     }
