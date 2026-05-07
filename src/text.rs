@@ -168,113 +168,98 @@ impl Text {
 
     pub(crate) fn inner_lines(&self) -> Vec<Line> {
         let mut lines = Vec::new();
-        let mut current_line = Line::default();
-        self.spans.iter().for_each(|s| {
+        let mut line = Line::default();
+
+        let mut push = |lines: &mut Vec<Line>, line: &mut Line, lh: f32| {
+            if line.2.is_empty() { line.1 = line.1.max(lh); }
+            line.2.iter_mut().for_each(|ch| ch.1.1 += line.1);
+            lines.push(line.take());
+        };
+
+        for s in &self.spans {
             let lm = s.font.horizontal_line_metrics(s.font_size).unwrap();
             let lh = s.line_height.unwrap_or(lm.new_line_size);
-            s.text.split('\n').enumerate().for_each(|(i, raw_line)| {
-                if i > 0 {
-                    if current_line.2.is_empty() { current_line.1 = current_line.1.max(lh); }
-                    current_line.2.iter_mut().for_each(|ch| ch.1.1 += current_line.1);
-                    lines.push(current_line.take());
-                }
 
-                raw_line.split_inclusive(|c: char| c.is_whitespace()).for_each(|word| {
-                    let mut word_width = 0.0;
+            for (i, raw) in s.text.split('\n').enumerate() {
+                if i > 0 { push(&mut lines, &mut line, lh); }
+
+                for word in raw.split_inclusive(char::is_whitespace) {
+                    let mut ww = 0.0;
                     let glyphs: Vec<_> = word.chars().map(|c| {
                         let m = s.font.metrics(c, s.font_size);
-                        let aw = m.advance_width;
-                        word_width += aw + s.kerning;
-                        (c, (m.bounds.xmin, m.bounds.ymin, m.bounds.width, m.bounds.height), aw)
+                        ww += m.advance_width + s.kerning;
+                        (c, (m.bounds.xmin, m.bounds.ymin, m.bounds.width, m.bounds.height), m.advance_width)
                     }).collect();
 
-                    if let Some(width) = self.width {
-                        if word_width >= width || self.max_lines.is_none() && current_line.0 + word_width > width && !current_line.2.is_empty() {
-                            current_line.2.iter_mut().for_each(|ch| ch.1.1 += current_line.1);
-                            lines.push(current_line.take());
-                        }
-                        for (c, (xmin, ymin, w, h), aw) in glyphs.iter() {
-                            if current_line.0 + aw > width && !current_line.2.is_empty() {
-                                current_line.2.iter_mut().for_each(|ch| ch.1.1 += current_line.1);
-                                lines.push(current_line.take());
-                            }
-                            let y = lines.iter().fold(0.0, |h, l| h + l.1) - ymin - h + lm.descent;
-                            current_line.2.push(Character(*c, (current_line.0 + xmin, y, *w, *h),
-                                s.font.clone(), s.color, lh, *aw,
-                            ));
-                            current_line.0 += aw + s.kerning;
-                            current_line.1 = current_line.1.max(lh);
-                        }
-                    } else {
-                        for (c, (xmin, ymin, w, h), aw) in glyphs.iter() {
-                            let y = lines.iter().fold(0.0, |h, l| h + l.1) - ymin - h + lm.descent;
-                            current_line.2.push(Character(*c, (current_line.0 + xmin, y, *w, *h),
-                                s.font.clone(), s.color, lh, *aw,
-                            ));
-                            current_line.0 += aw + s.kerning;
-                            current_line.1 = current_line.1.max(lh);
+                    if let Some(wmax) = self.width {
+                        if ww < wmax && line.0 + ww > wmax && !line.2.is_empty() {
+                            push(&mut lines, &mut line, lh);
                         }
                     }
 
-                });
-                // if current_line.2.is_empty() { current_line.1 = current_line.1.max(lh); }
-                // current_line.2.iter_mut().for_each(|ch| ch.1.1 += current_line.1);
-                // lines.push(current_line.take());
-            })
-        });
+                    for (c, (xmin, ymin, w, h), aw) in glyphs {
+                        if let Some(wmax) = self.width {
+                            if line.0 + aw + s.kerning > wmax && !line.2.is_empty() {
+                                push(&mut lines, &mut line, lh);
+                            }
+                            if line.2.is_empty() && c.is_whitespace() { continue; }
+                        }
 
-        // last line handled
-        if !current_line.2.is_empty() {
-            current_line.2.iter_mut().for_each(|ch| ch.1.1 += current_line.1);
-            lines.push(current_line.take());
+                        let y = lines.iter().fold(0.0, |h, l| h + l.1) - ymin - h + lm.descent;
+                        line.2.push(Character(c, (line.0 + xmin, y, w, h), s.font.clone(), s.color, lh, aw));
+                        line.0 += aw + s.kerning;
+                        line.1 = line.1.max(lh);
+                    }
+                }
+            }
         }
 
-        // alignment
+        if !line.2.is_empty() { push(&mut lines, &mut line, 0.0); }
+
         lines.iter_mut().for_each(|line| {
-            let offset_x = match self.align {
+            let offset = match self.align {
                 Align::Left => 0.0,
                 Align::Center => self.width.map_or(0.0, |w| (w - line.0) / 2.0),
                 Align::Right => self.width.map_or(0.0, |w| w - line.0),
             };
-            line.2.iter_mut().for_each(|ch| ch.1.0 += offset_x);
-            line.0 += offset_x;
+            line.2.iter_mut().for_each(|ch| ch.1.0 += offset);
+            line.0 += offset;
         });
 
-        // line max
-        match self.max_lines {
-            None => lines,
-            Some(max) => {
-                let len = lines.len();
-                let mut lines: Vec<_> = lines.into_iter().enumerate().filter_map(|(i, line)| (i < max as usize).then_some(line)).collect();
+        if let Some(max) = self.max_lines {
+            let len = lines.len();
+            lines.truncate(max as usize);
+
+            if len > max as usize {
                 let y = lines.iter().fold(0.0, |h, l| h + l.1);
-                if len > max as usize {
-                    if let Some(last) = lines.last_mut() {
-                        last.2.truncate(last.2.len().saturating_sub(3));
-                        let s = &self.spans[0];
-                        let lm = s.font.horizontal_line_metrics(s.font_size).unwrap();
-                        let lh = s.line_height.unwrap_or(lm.new_line_size);
 
-                        let glyphs: Vec<_> = "...".chars().map(|c| {
-                            let m = s.font.metrics(c, s.font_size);
-                            let aw = m.advance_width + s.kerning;
-                            (c, (m.bounds.xmin, m.bounds.ymin, m.bounds.width, m.bounds.height), aw)
-                        }).collect();
+                if let Some(last) = lines.last_mut() {
+                    last.2.truncate(last.2.len().saturating_sub(3));
 
-                        let mut start_x = last.2.last().map(|g| g.1.0 + g.5).unwrap_or(0.0);
-                        for (c, (xmin, ymin, w, h), aw) in glyphs.iter() {
-                            last.2.push(Character(*c, (start_x + xmin, y - ymin - h + lm.descent * s.font_size, *w, *h),
-                                s.font.clone(), s.color, lh, *aw,
-                            ));
-                            start_x += *aw;
-                            last.0 += *aw;
-                            last.1 = last.1.max(lh);
-                        }
+                    let s = &self.spans[0];
+                    let lm = s.font.horizontal_line_metrics(s.font_size).unwrap();
+                    let lh = s.line_height.unwrap_or(lm.new_line_size);
+                    let mut x = last.2.last().map(|g| g.1.0 + g.5).unwrap_or(0.0);
+
+                    for c in "...".chars() {
+                        let m = s.font.metrics(c, s.font_size);
+                        let aw = m.advance_width + s.kerning;
+
+                        last.2.push(Character(
+                            c,
+                            (x + m.bounds.xmin, y - m.bounds.ymin - m.bounds.height + lm.descent * s.font_size, m.bounds.width, m.bounds.height),
+                            s.font.clone(), s.color, lh, aw,
+                        ));
+
+                        x += aw;
+                        last.0 += aw;
+                        last.1 = last.1.max(lh);
                     }
                 }
-
-                lines
             }
         }
+
+        lines
     }
 }
 
