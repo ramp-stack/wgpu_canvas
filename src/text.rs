@@ -159,6 +159,7 @@ impl Text {
     }
 
     pub fn len(&self) -> usize {self.lines().len()} 
+    pub fn is_empty(&self) -> bool {self.len() == 0}
 
     pub(crate) fn lines(&self) -> Vec<Line> {
         let mut hasher = DefaultHasher::new();
@@ -170,7 +171,7 @@ impl Text {
         let mut lines = Vec::new();
         let mut line = Line::default();
 
-        let mut push = |lines: &mut Vec<Line>, line: &mut Line, lh: f32| {
+        let push = |lines: &mut Vec<Line>, line: &mut Line, lh: f32| {
             if line.2.is_empty() { line.1 = line.1.max(lh); }
             line.2.iter_mut().for_each(|ch| ch.1.1 += line.1);
             lines.push(line.take());
@@ -191,10 +192,9 @@ impl Text {
                         (c, (m.bounds.xmin, m.bounds.ymin, m.bounds.width, m.bounds.height), m.advance_width)
                     }).collect();
 
-                    if let Some(wmax) = self.width {
-                        if ww < wmax && line.0 + ww > wmax && !line.2.is_empty() {
-                            push(&mut lines, &mut line, lh);
-                        }
+                    if let Some(wmax) = self.width 
+                    && ww < wmax && line.0 + ww > wmax && !line.2.is_empty() {
+                        push(&mut lines, &mut line, lh);
                     }
 
                     for (c, (xmin, ymin, w, h), aw) in glyphs {

@@ -123,10 +123,9 @@ impl TextAtlas {
         map.entry(c).or_insert_with(|| {
             let (m, b) = font.rasterize(c, 160.0);//3x bigger than needs to be
             let b: Vec<_> = b.iter().flat_map(|a| [0, 0, 0, *a]).collect();
-            let image = b.iter().any(|a| *a != 0).then(|| {
+            b.iter().any(|a| *a != 0).then(|| {
                 Arc::new(RgbaImage::from_raw(m.width as u32, m.height as u32, b).unwrap())
-            });
-            image
+            })
         }).clone()
     }
 
