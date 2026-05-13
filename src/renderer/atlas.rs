@@ -129,13 +129,13 @@ impl TextAtlas {
         }).clone()
     }
 
-    pub fn get(&mut self, text: Text) -> Vec<(Offset, ShapeType, Arc<RgbaImage>, Color)> {
+    pub fn get(&mut self, text: Text) -> Vec<(Offset, ShapeType, Arc<RgbaImage>, Option<Color>)> {
         text.lines().iter().flat_map(|line| line.2.iter().flat_map(|ch| {
-            self.get_image(&ch.2, ch.0).map(|img| {
+            ch.0.chars().map(|c| self.get_image(&ch.2, c).map(|img| {
                 let shape = ShapeType::Rectangle(0.0, (ch.1.2, ch.1.3), 0.0);
                 let offset = (ch.1.0, ch.1.1);
                 (offset, shape, img, ch.3)
-            })
-        }).collect::<Vec<_>>()).collect::<Vec<_>>()
+            })).collect::<Vec<_>>()
+        }).flatten().collect::<Vec<_>>()).collect::<Vec<_>>()
     } 
 }

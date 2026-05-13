@@ -55,7 +55,7 @@ impl Renderer {
                         offset: (area.offset.0+(offset.0), area.offset.1+(offset.1)),
                         bounds: area.bounds
                     };
-                    (z, area, shape, image, Some(color))
+                    (z, area, shape, image, color)
                 }))
             }
             a
