@@ -30,11 +30,6 @@ impl Renderer {
         }
     }
 
-    /// Prepare for rendering this frame; create all resources that will be
-    /// used during the next render that do not already exist.
-    ///
-    /// Items are given a z_index based on the order in which they are presented. First item in the
-    /// vector will be printed in the back of the stack(z = u16::MAX-1)
     #[allow(clippy::too_many_arguments)]
     pub fn prepare(
         &mut self,
@@ -42,6 +37,7 @@ impl Renderer {
         queue: &Queue,
         width: f32,
         height: f32,
+        scale_factor: f32,
         atlas: &mut Atlas,
         items: Vec<(Area, Item)>,
     ) {
@@ -50,9 +46,12 @@ impl Renderer {
             match item {
                 Item::Shape(shape) => a.0.push((z, area, shape.shape, shape.color)),
                 Item::Image(image) => a.1.push((z, area, image.shape, image.image, image.color)),
-                Item::Text(text) => a.1.extend(atlas.text.get(text).into_iter().map(|(offset, shape, image, color)| {
+                Item::Text(text) => a.1.extend(atlas.text.get(text, scale_factor).into_iter().map(|(offset, shape, image, color)| {
                     let area = Area{
-                        offset: (area.offset.0+(offset.0), area.offset.1+(offset.1)),
+                        offset: (
+                            (area.offset.0 + offset.0).round(),
+                            (area.offset.1 + offset.1).round(),
+                        ),
                         bounds: area.bounds
                     };
                     (z, area, shape, image, Some(color))

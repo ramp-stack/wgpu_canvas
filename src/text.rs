@@ -200,7 +200,7 @@ impl Text {
                             }
                             let y = lines.iter().fold(0.0, |h, l| h + l.1) - ymin - h + lm.descent;
                             current_line.2.push(Character(*c, (current_line.0 + xmin, y, *w, *h),
-                                s.font.clone(), s.color, lh, *aw,
+                                s.font.clone(), s.color, lh, *aw, s.font_size,
                             ));
                             current_line.0 += aw + s.kerning;
                             current_line.1 = current_line.1.max(lh);
@@ -209,7 +209,7 @@ impl Text {
                         for (c, (xmin, ymin, w, h), aw) in glyphs.iter() {
                             let y = lines.iter().fold(0.0, |h, l| h + l.1) - ymin - h + lm.descent;
                             current_line.2.push(Character(*c, (current_line.0 + xmin, y, *w, *h),
-                                s.font.clone(), s.color, lh, *aw,
+                                s.font.clone(), s.color, lh, *aw, s.font_size,
                             ));
                             current_line.0 += aw + s.kerning;
                             current_line.1 = current_line.1.max(lh);
@@ -217,13 +217,9 @@ impl Text {
                     }
 
                 });
-                // if current_line.2.is_empty() { current_line.1 = current_line.1.max(lh); }
-                // current_line.2.iter_mut().for_each(|ch| ch.1.1 += current_line.1);
-                // lines.push(current_line.take());
             })
         });
 
-        // last line handled
         if !current_line.2.is_empty() {
             current_line.2.iter_mut().for_each(|ch| ch.1.1 += current_line.1);
             lines.push(current_line.take());
@@ -263,7 +259,7 @@ impl Text {
                         let mut start_x = last.2.last().map(|g| g.1.0 + g.5).unwrap_or(0.0);
                         for (c, (xmin, ymin, w, h), aw) in glyphs.iter() {
                             last.2.push(Character(*c, (start_x + xmin, y - ymin - h + lm.descent * s.font_size, *w, *h),
-                                s.font.clone(), s.color, lh, *aw,
+                                s.font.clone(), s.color, lh, *aw, s.font_size,
                             ));
                             start_x += *aw;
                             last.0 += *aw;
@@ -279,7 +275,7 @@ impl Text {
 }
 
 #[derive(Debug, Clone)]
-pub struct Character(pub char, pub (f32, f32, f32, f32), pub Arc<Font>, pub Color, pub f32, pub f32);
+pub struct Character(pub char, pub (f32, f32, f32, f32), pub Arc<Font>, pub Color, pub f32, pub f32, pub f32);
 #[derive(Debug, Clone, Default)]
 pub(crate) struct Line(pub f32, pub f32, pub Vec<Character>);
 impl Line {
@@ -290,4 +286,3 @@ impl Line {
         l
     }
 }
-

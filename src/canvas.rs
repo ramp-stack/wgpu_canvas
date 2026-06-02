@@ -14,13 +14,12 @@ pub struct Canvas<'surface> {
     msaa_view: Option<TextureView>,
     depth_view: TextureView,
     renderer: Renderer,
-    old: Vec<(Area, Item)>
+    old: Vec<(Area, Item)>,
+    scale_factor: f32,
 }
 
 impl<'surface> Canvas<'surface> {
     /// Creates a new `Canvas` for the given window and size.
-    ///
-    /// Returns the `Canvas` and its initial `(width, height)`
     pub async fn new<W: WindowHandle + 'surface>(window: W, width: u32, height: u32) -> Self {
         let instance = Instance::new(&InstanceDescriptor::default());
 
@@ -81,9 +80,7 @@ impl<'surface> Canvas<'surface> {
         };
 
         let msaa_view = (SAMPLE_COUNT > 1).then(|| Self::create_msaa_view(&device, &config));
-
         let depth_view = Self::create_depth_view(&device, &config);
-
         let renderer = Renderer::new(&device, &surface_caps.formats[0], multisample, Some(depth_stencil));
 
         Canvas{
@@ -96,13 +93,12 @@ impl<'surface> Canvas<'surface> {
             msaa_view,
             depth_view,
             renderer,
-            old: vec![]
+            old: vec![],
+            scale_factor: 2.0,
         }
     }
 
     /// Resizes the canvas to the given dimensions.
-    ///
-    /// Returns the updated `(width, height)`.
     pub fn resize(&mut self, width: u32, height: u32) {
         if width > 0 && height > 0 {
             let limits = self.device.limits();
@@ -117,12 +113,18 @@ impl<'surface> Canvas<'surface> {
         }
     }
 
-    /// Draws the given `items` using the provided `atlas`.
-    ///
-    /// Handles render pass setup, MSAA, and depth buffer automatically.
+    /// Updates the scale factor (call this when ScaleFactorChanged fires).
+    pub fn set_scale_factor(&mut self, scale_factor: f32) {
+        if self.scale_factor != scale_factor {
+            self.scale_factor = scale_factor;
+            self.atlas.text.clear();
+            self.old = vec![];
+        }
+    }
+
+    /// Draws the given `items`.
     pub fn draw(&mut self, items: Vec<(Area, Item)>) {
         self.atlas.trim();
-        //TODO: Get a better diff system, one that probably diffs on the vertices bytes too
         if self.old == items {return;}
         self.old = items.clone();
         self.renderer.prepare(
@@ -130,7 +132,9 @@ impl<'surface> Canvas<'surface> {
             &self.queue,
             self.config.width as f32,
             self.config.height as f32,
-            &mut self.atlas, items
+            self.scale_factor,
+            &mut self.atlas,
+            items
         );
         let output = self.surface.get_current_texture().unwrap();
         let frame_view = output.texture.create_view(&TextureViewDescriptor::default());
@@ -191,7 +195,7 @@ impl<'surface> Canvas<'surface> {
     fn create_depth_view(device: &Device, config: &SurfaceConfiguration) -> TextureView {
         device.create_texture(&TextureDescriptor {
             label: Some("Depth Stencil Texture"),
-            size: Extent3d { // 2.
+            size: Extent3d {
                 width: config.width,
                 height: config.height,
                 depth_or_array_layers: 1,

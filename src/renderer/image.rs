@@ -14,6 +14,7 @@ type ArcImage = Arc<RgbaImage>;
 pub struct ImageRenderer {
     bind_group_layout: BindGroupLayout,
     sampler: Sampler,
+    pub text_sampler: Sampler,
     ellipse_renderer: GenericImageRenderer,
     rectangle_renderer: GenericImageRenderer,
     rounded_rectangle_renderer: GenericImageRenderer,
@@ -49,6 +50,7 @@ impl ImageRenderer {
             ]
         });
 
+        // Linear sampler for images
         let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
             address_mode_u: wgpu::AddressMode::ClampToEdge,
             address_mode_v: wgpu::AddressMode::ClampToEdge,
@@ -59,15 +61,28 @@ impl ImageRenderer {
             ..Default::default()
         });
 
+        // Nearest sampler for text glyphs — no interpolation, pixel-exact
+        let text_sampler = device.create_sampler(&wgpu::SamplerDescriptor {
+            address_mode_u: wgpu::AddressMode::ClampToEdge,
+            address_mode_v: wgpu::AddressMode::ClampToEdge,
+            address_mode_w: wgpu::AddressMode::ClampToEdge,
+            mag_filter: wgpu::FilterMode::Nearest,
+            min_filter: wgpu::FilterMode::Nearest,
+            mipmap_filter: wgpu::FilterMode::Nearest,
+            ..Default::default()
+        });
+
         let shader = device.create_shader_module(wgpu::include_wgsl!("image/ellipse.wgsl"));
         let ellipse_renderer = GenericImageRenderer::new(device, texture_format, multisample, depth_stencil.clone(), &bind_group_layout, shader, ImageVertex::<ShapeVertex>::layout());
         let shader = device.create_shader_module(wgpu::include_wgsl!("image/rectangle.wgsl"));
         let rectangle_renderer = GenericImageRenderer::new(device, texture_format, multisample, depth_stencil.clone(), &bind_group_layout, shader, ImageVertex::<ShapeVertex>::layout());
         let shader = device.create_shader_module(wgpu::include_wgsl!("image/rounded_rectangle.wgsl"));
         let rounded_rectangle_renderer = GenericImageRenderer::new(device, texture_format, multisample, depth_stencil.clone(), &bind_group_layout, shader, ImageVertex::<RoundedRectangleVertex>::layout());
+
         ImageRenderer{
             bind_group_layout,
             sampler,
+            text_sampler,
             ellipse_renderer,
             rectangle_renderer,
             rounded_rectangle_renderer

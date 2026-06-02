@@ -97,11 +97,12 @@ impl ImageAtlas {
     }
 }
 
-type ImageMap = HashMap<char, Option<Arc<RgbaImage>>>;
+// Keyed by (char, font_size_bits, scale_factor_bits)
+type ImageMap = HashMap<(char, u32, u32), Option<Arc<RgbaImage>>>;
 type Offset = (f32, f32);
 
 #[derive(Default, Debug)]
-pub struct TextAtlas{
+pub struct TextAtlas {
     fonts: Vec<(Arc<Font>, ImageMap)>
 }
 
@@ -110,7 +111,11 @@ impl TextAtlas {
         self.fonts = self.fonts.drain(..).filter(|(k, _)| Arc::strong_count(k) > 1).collect();
     }
 
-    fn get_font(&mut self, font: &Arc<Font>) -> &mut HashMap<char, Option<Arc<RgbaImage>>> {
+    pub fn clear(&mut self) {
+        self.fonts.clear();
+    }
+
+    fn get_font(&mut self, font: &Arc<Font>) -> &mut ImageMap {
         let position = self.fonts.iter().position(|(f, _)| Arc::ptr_eq(f, font)).unwrap_or_else(|| {
             self.fonts.push((font.clone(), HashMap::new()));
             self.fonts.len()-1
@@ -118,25 +123,24 @@ impl TextAtlas {
         &mut self.fonts[position].1
     }
 
-    fn get_image(&mut self, font: &Arc<Font>, c: char) -> Option<Arc<RgbaImage>> {
+    fn get_image(&mut self, font: &Arc<Font>, c: char, font_size: f32, scale_factor: f32) -> Option<Arc<RgbaImage>> {
         let map = self.get_font(font);
-        map.entry(c).or_insert_with(|| {
-            let (m, b) = font.rasterize(c, 160.0);//3x bigger than needs to be
+        map.entry((c, font_size.to_bits(), scale_factor.to_bits())).or_insert_with(|| {
+            let (m, b) = font.rasterize(c, font_size * scale_factor);
             let b: Vec<_> = b.iter().flat_map(|a| [0, 0, 0, *a]).collect();
-            let image = b.iter().any(|a| *a != 0).then(|| {
+            b.iter().any(|a| *a != 0).then(|| {
                 Arc::new(RgbaImage::from_raw(m.width as u32, m.height as u32, b).unwrap())
-            });
-            image
+            })
         }).clone()
     }
 
-    pub fn get(&mut self, text: Text) -> Vec<(Offset, ShapeType, Arc<RgbaImage>, Color)> {
+    pub fn get(&mut self, text: Text, scale_factor: f32) -> Vec<(Offset, ShapeType, Arc<RgbaImage>, Color)> {
         text.lines().iter().flat_map(|line| line.2.iter().flat_map(|ch| {
-            self.get_image(&ch.2, ch.0).map(|img| {
+            self.get_image(&ch.2, ch.0, ch.6, scale_factor).map(|img| {
                 let shape = ShapeType::Rectangle(0.0, (ch.1.2, ch.1.3), 0.0);
                 let offset = (ch.1.0, ch.1.1);
                 (offset, shape, img, ch.3)
             })
         }).collect::<Vec<_>>()).collect::<Vec<_>>()
-    } 
+    }
 }
