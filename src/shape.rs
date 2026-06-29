@@ -5,6 +5,12 @@ pub enum Shape {
     RoundedRectangle(f32, (f32, f32), f32, f32),
 }
 impl Shape {
+    pub fn scale(self, scale: f32) -> Shape {match self {
+        Shape::Ellipse(s, (w, h), a) => Shape::Ellipse(scale*s, (scale*w, scale*h), a),
+        Shape::Rectangle(s, (w, h), a) => Shape::Rectangle(scale*s, (scale*w, scale*h), a),
+        Shape::RoundedRectangle(s, (w, h), a, c) => Shape::RoundedRectangle(scale*s, (scale*w, scale*h), a, scale*c),
+    }}
+
     pub fn stroke(&self) -> f32 {match self {
         Shape::Ellipse(s, (w, h), _) => s.min(w.min(*h)),
         Shape::Rectangle(s, (w, h), _) => s.min(w.min(*h)),

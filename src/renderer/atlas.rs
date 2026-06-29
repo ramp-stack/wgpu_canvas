@@ -1,6 +1,7 @@
 use wgpu::{BindGroup, TextureViewDescriptor, TexelCopyBufferLayout, TextureAspect, Origin3d, TextureUsages, TexelCopyTextureInfo, Extent3d, TextureDimension, TextureDescriptor, TextureFormat, BindGroupLayout, Device, Queue, Sampler};
 
-use crate::{Text, Font, Color, RgbaImage, ShapeType};
+use crate::shape::Shape;
+use crate::{Text, Font, Color, RgbaImage};
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -102,23 +103,24 @@ type Offset = (f32, f32);
 
 #[derive(Default, Debug)]
 pub struct TextAtlas{
-    fonts: Vec<(Arc<Font>, ImageMap)>
+    fonts: Vec<(Font, ImageMap)>
 }
 
 impl TextAtlas {
     pub fn trim(&mut self) {
-        self.fonts = self.fonts.drain(..).filter(|(k, _)| Arc::strong_count(k) > 1).collect();
+        self.fonts = self.fonts.drain(..).filter(|(k, _)| Arc::strong_count(&k.0) > 1).collect();
     }
 
-    fn get_font(&mut self, font: &Arc<Font>) -> &mut HashMap<char, Option<Arc<RgbaImage>>> {
-        let position = self.fonts.iter().position(|(f, _)| Arc::ptr_eq(f, font)).unwrap_or_else(|| {
+    fn get_font(&mut self, font: &Font) -> &mut HashMap<char, Option<Arc<RgbaImage>>> {
+        //TODO: If two fonts are the same but come from different instances merge the instances when found
+        let position = self.fonts.iter().position(|(f, _)| Arc::ptr_eq(&f.0, &font.0)).unwrap_or_else(|| {
             self.fonts.push((font.clone(), HashMap::new()));
             self.fonts.len()-1
         });
         &mut self.fonts[position].1
     }
 
-    fn get_image(&mut self, font: &Arc<Font>, c: char) -> Option<Arc<RgbaImage>> {
+    fn get_image(&mut self, font: &Font, c: char) -> Option<Arc<RgbaImage>> {
         let map = self.get_font(font);
         map.entry(c).or_insert_with(|| {
             let (m, b) = font.rasterize(c, 160.0);//3x bigger than needs to be
@@ -129,10 +131,10 @@ impl TextAtlas {
         }).clone()
     }
 
-    pub fn get(&mut self, text: Text) -> Vec<(Offset, ShapeType, Arc<RgbaImage>, Option<Color>)> {
+    pub fn get(&mut self, text: Text) -> Vec<(Offset, Shape, Arc<RgbaImage>, Option<Color>)> {
         text.lines().iter().flat_map(|line| line.2.iter().flat_map(|ch| {
             ch.0.chars().map(|c| self.get_image(&ch.2, c).map(|img| {
-                let shape = ShapeType::Rectangle(0.0, (ch.1.2, ch.1.3), 0.0);
+                let shape = Shape::Rectangle(0.0, (ch.1.2, ch.1.3), 0.0);
                 let offset = (ch.1.0, ch.1.1);
                 (offset, shape, img, ch.3)
             })).collect::<Vec<_>>()

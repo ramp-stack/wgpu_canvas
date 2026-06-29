@@ -9,10 +9,8 @@ use unicode_segmentation::UnicodeSegmentation;
 lazy_static! {
     static ref TEXT_LINES: Arc<Mutex<HashMap<u64, Vec<Line>>>> = Arc::default();
 
-    static ref EMOJI_FONT: Arc<Font> = Arc::new(
-        Font::from_bytes(include_bytes!("../emoji.ttf"))
-            .expect("failed to load emoji font")
-    );
+    static ref EMOJI_FONT: Font = Font::from_bytes(include_bytes!("../emoji.ttf"))
+        .expect("failed to load emoji font");
 }
 
 
@@ -28,17 +26,17 @@ fn is_emoji_grapheme(g: &str) -> bool {
 }
 
 #[derive(Debug, Clone)]
-pub struct Font(pub fontdue::Font);
+pub struct Font(pub Arc<fontdue::Font>);
 
 impl Font {
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, &'static str> {
-        Ok(Font(fontdue::Font::from_bytes(
+        Ok(Font(Arc::new(fontdue::Font::from_bytes(
             bytes,
             fontdue::FontSettings {
                 scale: 160.0,
                 ..Default::default()
             },
-        )?))
+        )?)))
     }
 }
 
@@ -74,7 +72,7 @@ pub struct Span {
     pub text: String,
     pub font_size: f32,
     pub line_height: Option<f32>,
-    pub font: Arc<Font>,
+    pub font: Font,
     pub color: Color,
     pub kerning: f32,
 }
@@ -99,7 +97,7 @@ impl Span {
         text: String,
         font_size: f32,
         line_height: Option<f32>,
-        font: Arc<Font>,
+        font: Font,
         color: Color,
         kerning: f32,
     ) -> Self {
@@ -145,18 +143,28 @@ impl Hash for Text {
 
 impl Text {
     pub fn new(
-        spans: Vec<Span>,
-        width: Option<f32>,
+        text: &str,
+        font: Font,
+        font_size: f32,
+        color: Color,
         align: Align,
-        max_lines: Option<u32>,
     ) -> Self {
         Text {
-            spans,
-            width,
+            spans: vec![Span::new(text.to_string(), font_size, None, font, color, 0.0)],
+            width: None,
             align,
             cursor: None,
-            max_lines,
+            max_lines: None,
         }
+    }
+
+    pub fn scale(&mut self, scale: f32) {
+        self.width = self.width.map(|w| scale*w);
+        self.spans.iter_mut().for_each(|span| {
+            span.font_size *= scale;
+            span.line_height = span.line_height.map(|l| scale*l);
+            span.kerning *= scale;
+        });
     }
 
     pub fn size(&self) -> (f32, f32) {
@@ -439,7 +447,7 @@ impl Text {
 pub struct Character(
     pub String,
     pub (f32, f32, f32, f32),
-    pub Arc<Font>,
+    pub Font,
     pub Option<Color>,
     pub f32,
     pub f32,

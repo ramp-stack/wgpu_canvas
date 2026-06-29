@@ -4,7 +4,8 @@ use super::buffer::{DynamicBufferDescriptor, DynamicBuffer};
 
 use std::collections::HashMap;
 use std::sync::Arc;
-use crate::{Area, Color, ShapeType, RgbaImage};
+use crate::shape::Shape;
+use crate::{Area, Color, RgbaImage};
 
 use super::atlas::ImageAtlas;
 use super::vertex::{Vertex, ImageVertex, ShapeVertex, RoundedRectangleVertex};
@@ -83,18 +84,18 @@ impl ImageRenderer {
         width: f32,
         height: f32,
         image_atlas: &mut ImageAtlas,
-        items: Vec<(u16, Area, ShapeType, ArcImage, Option<Color>)>,
+        items: Vec<(Area, Shape, ArcImage, Option<Color>, u16)>,
     ) {
         let (ellipses, rects, rounded_rects) = items.into_iter().fold(
             (vec![], vec![], vec![]),
-            |mut a, (z, area, shape, key, color)| {
+            |mut a, (area, shape, key, color, z)| {
                 let image = image_atlas.get(queue, device, &self.bind_group_layout, &self.sampler, &key);
                 match shape {
-                    ShapeType::Ellipse(_, size, _) =>
+                    Shape::Ellipse(_, size, _) =>
                         a.0.push((ImageVertex::new(ShapeVertex::new(width, height, z, area, shape), &key, size, color), image)),
-                    ShapeType::Rectangle(_, size, _) =>
+                    Shape::Rectangle(_, size, _) =>
                         a.1.push((ImageVertex::new(ShapeVertex::new(width, height, z, area, shape), &key, size, color), image)),
-                    ShapeType::RoundedRectangle(_, size, _, corner_radius) =>
+                    Shape::RoundedRectangle(_, size, _, corner_radius) =>
                         a.2.push((ImageVertex::new(RoundedRectangleVertex::new(width, height, z, area, shape, corner_radius), &key, size, color), image)),
                 }
                 a

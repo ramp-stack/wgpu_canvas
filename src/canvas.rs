@@ -1,6 +1,6 @@
 use wgpu::{RenderPassDepthStencilAttachment, RenderPassColorAttachment, CommandEncoderDescriptor, TextureViewDescriptor, RequestAdapterOptions, SurfaceConfiguration, RenderPassDescriptor, InstanceDescriptor, DepthStencilState, TextureDescriptor, TextureDimension, MultisampleState, DeviceDescriptor, PowerPreference, CompareFunction, WindowHandle, DepthBiasState, TextureUsages, TextureFormat, StencilState, TextureView, Operations, Instance, Features, Extent3d, Surface, StoreOp, LoadOp, Limits, Device, Queue, Trace};
 
-use crate::{Renderer, Atlas, Area, Item};
+use crate::{Renderer, Atlas, Instruction};
 
 const SAMPLE_COUNT: u32 = 4;
 
@@ -14,7 +14,7 @@ pub struct Canvas<'surface> {
     msaa_view: Option<TextureView>,
     depth_view: TextureView,
     renderer: Renderer,
-    old: Vec<(Area, Item)>
+    old: Vec<Instruction>
 }
 
 impl<'surface> Canvas<'surface> {
@@ -120,7 +120,7 @@ impl<'surface> Canvas<'surface> {
     /// Draws the given `items` using the provided `atlas`.
     ///
     /// Handles render pass setup, MSAA, and depth buffer automatically.
-    pub fn draw(&mut self, items: Vec<(Area, Item)>) {
+    pub fn draw(&mut self, items: Vec<Instruction>) {
         self.atlas.trim();
         //TODO: Get a better diff system, one that probably diffs on the vertices bytes too
         if self.old == items {return;}

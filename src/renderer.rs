@@ -9,7 +9,7 @@ use image::ImageRenderer;
 mod atlas;
 pub use atlas::Atlas;
 
-use crate::{Area, Item};
+use crate::{Instruction, Item, Area};
 
 pub struct Renderer {
     color_renderer: ColorRenderer,
@@ -43,20 +43,17 @@ impl Renderer {
         width: f32,
         height: f32,
         atlas: &mut Atlas,
-        items: Vec<(Area, Item)>,
+        items: Vec<Instruction>,
     ) {
-        let (colors, images) = items.into_iter().enumerate().fold((vec![], vec![]), |mut a, (i, (area, item))| {
+        let (colors, images) = items.into_iter().enumerate().fold((vec![], vec![]), |mut a, (i, Instruction(area, item))| {
             let z = i as u16;
             match item {
-                Item::Shape(shape) => a.0.push((z, area, shape.shape, shape.color)),
-                Item::Image(image) => a.1.push((z, area, image.shape, image.image, image.color)),
-                Item::Text(text) => a.1.extend(atlas.text.get(text).into_iter().map(|(offset, shape, image, color)| {
-                    let area = Area{
-                        offset: (area.offset.0+(offset.0), area.offset.1+(offset.1)),
-                        bounds: area.bounds
-                    };
-                    (z, area, shape, image, color)
-                }))
+                Item::Shape(shape) => a.0.push((area, shape.shape, shape.color, z)),
+                Item::Image(image) => a.1.push((area, image.shape, image.image, image.color, z)),
+                Item::Text(text) => a.1.extend(atlas.text.get(text).into_iter().map(|(offset, shape, image, color)| (
+                    Area{offset: (area.offset.0+(offset.0), area.offset.1+(offset.1)), bounds: area.bounds},
+                    shape, image, color, z
+                )))
             }
             a
         });
