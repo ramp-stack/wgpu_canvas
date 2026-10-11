@@ -17,6 +17,7 @@ image = {package="image", version="0.24.9"}
 fontdue = "0.9.3"
 lazy_static = "1.5.0"
 unicode-segmentation = "1"
+swash = "0.2.10"
 
 [features]
 default = ["canvas", "renderer"]

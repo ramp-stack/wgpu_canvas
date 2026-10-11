@@ -1,6 +1,7 @@
 use wgpu::{BindGroup, TextureViewDescriptor, TexelCopyBufferLayout, TextureAspect, Origin3d, TextureUsages, TexelCopyTextureInfo, Extent3d, TextureDimension, TextureDescriptor, TextureFormat, BindGroupLayout, Device, Queue, Sampler};
 
 use crate::shape::Shape;
+use crate::text::EMOJI_FONT;
 use crate::{Text, Font, Color, RgbaImage};
 
 use std::collections::HashMap;
@@ -97,47 +98,184 @@ impl ImageAtlas {
         }
     }
 }
-
-type ImageMap = HashMap<char, Option<Arc<RgbaImage>>>;
+type ImageMap = HashMap<String, Option<Arc<RgbaImage>>>;
 type Offset = (f32, f32);
 
 #[derive(Default, Debug)]
-pub struct TextAtlas{
+pub struct TextAtlas {
     fonts: Vec<(Font, ImageMap)>
 }
 
 impl TextAtlas {
     pub fn trim(&mut self) {
-        self.fonts = self.fonts.drain(..).filter(|(k, _)| Arc::strong_count(&k.0) > 1).collect();
+        self.fonts = self.fonts
+            .drain(..)
+            .filter(|(k, _)| Arc::strong_count(&k.0) > 1)
+            .collect();
     }
 
-    fn get_font(&mut self, font: &Font) -> &mut HashMap<char, Option<Arc<RgbaImage>>> {
-        //TODO: If two fonts are the same but come from different instances merge the instances when found
-        let position = self.fonts.iter().position(|(f, _)| Arc::ptr_eq(&f.0, &font.0)).unwrap_or_else(|| {
-            self.fonts.push((font.clone(), HashMap::new()));
-            self.fonts.len()-1
-        });
+    fn get_font(&mut self, font: &Font) -> &mut HashMap<String, Option<Arc<RgbaImage>>> {
+        let position = self.fonts
+            .iter()
+            .position(|(f, _)| Arc::ptr_eq(&f.0, &font.0))
+            .unwrap_or_else(|| {
+                self.fonts.push((font.clone(), HashMap::new()));
+                self.fonts.len() - 1
+            });
+
         &mut self.fonts[position].1
     }
 
-    fn get_image(&mut self, font: &Font, c: char) -> Option<Arc<RgbaImage>> {
-        let map = self.get_font(font);
-        map.entry(c).or_insert_with(|| {
-            let (m, b) = font.rasterize(c, 160.0);//3x bigger than needs to be
-            let b: Vec<_> = b.iter().flat_map(|a| [0, 0, 0, *a]).collect();
-            b.iter().any(|a| *a != 0).then(|| {
-                Arc::new(RgbaImage::from_raw(m.width as u32, m.height as u32, b).unwrap())
-            })
+    fn get_swash_image(&mut self, ch: String) -> Option<Arc<RgbaImage>> {
+        let map = self.get_font(&EMOJI_FONT);
+
+        map.entry(ch.clone()).or_insert_with(|| {
+            use swash::scale::{
+                Render,
+                ScaleContext,
+                Source,
+                StrikeWith,
+            };
+
+            let mut context = ScaleContext::new();
+
+            let mut scaler = context
+                .builder(EMOJI_FONT.swash_font())
+                .size(160.0)
+                .hint(false)
+                .build();
+
+            let mut render = Render::new(&[
+                Source::ColorBitmap(StrikeWith::BestFit),
+                Source::ColorOutline(0),
+                Source::Outline,
+            ]);
+
+            let mut shape_context = swash::shape::ShapeContext::new();
+
+            let mut shaper = shape_context
+                .builder(EMOJI_FONT.swash_font())
+                .size(160.0)
+                .build();
+
+            shaper.add_str(&ch);
+
+            let mut glyph_id = None;
+            shaper.shape_with(|cluster| {
+                if glyph_id.is_none() {
+                    if let Some(glyph) = cluster.glyphs.first() {
+                        glyph_id = Some(glyph.id);
+                    }
+                }
+            });
+
+            let glyph_id = glyph_id?;
+
+            let image = render.render(
+                &mut scaler,
+                glyph_id,
+            )?;
+
+            let width = image.placement.width as u32;
+            let height = image.placement.height as u32;
+
+            if width == 0 || height == 0 {
+                return None;
+            }
+
+            // swash's buffer layout depends on which Source satisfied the
+            // request: Color/SubpixelMask sources already produce 4
+            // bytes/pixel RGBA, but a plain Outline fallback produces an
+            // 8-bit alpha-only mask (1 byte/pixel). Feeding the latter
+            // straight into RgbaImage::from_raw silently fails (length
+            // mismatch -> None), which is why glyphs were vanishing.
+            use swash::scale::image::Content;
+
+            let rgba: Vec<u8> = match image.content {
+                Content::Mask => image.data
+                    .iter()
+                    .flat_map(|a| [0, 0, 0, *a])
+                    .collect(),
+                Content::Color | Content::SubpixelMask => image.data,
+            };
+
+            Some(Arc::new(
+                RgbaImage::from_raw(
+                    width,
+                    height,
+                    rgba
+                )?
+            ))
         }).clone()
     }
 
-    pub fn get(&mut self, text: Text) -> Vec<(Offset, Shape, Arc<RgbaImage>, Option<Color>)> {
-        text.lines().iter().flat_map(|line| line.2.iter().flat_map(|ch| {
-            ch.0.chars().map(|c| self.get_image(&ch.2, c).map(|img| {
-                let shape = Shape::Rectangle(0.0, (ch.1.2, ch.1.3), 0.0);
-                let offset = (ch.1.0, ch.1.1);
-                (offset, shape, img, ch.3)
-            })).collect::<Vec<_>>()
-        }).flatten().collect::<Vec<_>>()).collect::<Vec<_>>()
-    } 
+    fn get_image(&mut self, font: &Font, ch: String) -> Option<Arc<RgbaImage>> {
+        if is_emoji_grapheme(&ch) {
+            return self.get_swash_image(ch);
+        }
+
+        let map = self.get_font(font);
+
+        map.entry(ch.clone()).or_insert_with(|| {
+            let ch_char = ch.chars().next()?;
+
+            let (m, b) = font.rasterize(ch_char, 160.0);
+
+            let b: Vec<_> = b
+                .iter()
+                .flat_map(|a| [0, 0, 0, *a])
+                .collect();
+
+            b.iter()
+                .any(|a| *a != 0)
+                .then(|| {
+                    Arc::new(
+                        RgbaImage::from_raw(
+                            m.width as u32,
+                            m.height as u32,
+                            b
+                        ).unwrap()
+                    )
+                })
+        }).clone()
+    }
+
+    pub fn get(
+        &mut self,
+        text: Text
+    ) -> Vec<(Offset, Shape, Arc<RgbaImage>, Option<Color>)> {
+        let mut result = Vec::new();
+
+        for line in text.lines().iter() {
+            for ch in line.2.iter() {
+                if let Some(img) = self.get_image(&ch.2, ch.0.clone()) {
+                    let shape = Shape::Rectangle(
+                        0.0,
+                        (ch.1.2, ch.1.3),
+                        0.0
+                    );
+
+                    let offset = (
+                        ch.1.0,
+                        ch.1.1
+                    );
+
+                    result.push((offset, shape, img, ch.3));
+                }
+            }
+        }
+
+        result
+    }
+}
+
+fn is_emoji_grapheme(g: &str) -> bool {
+    g.chars().any(|c| {
+        matches!(
+            c as u32,
+            0x1F000..=0x1FAFF | // emoji
+            0x2600..=0x27BF   | // symbols/dingbats
+            0x2300..=0x23FF     // misc technical
+        )
+    })
 }
