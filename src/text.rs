@@ -1,5 +1,6 @@
 use super::Color;
 use std::ops::Deref;
+use std::cell::RefCell;
 use std::sync::{Mutex, Arc};
 use std::collections::HashMap;
 use std::hash::{DefaultHasher, Hasher, Hash};
@@ -11,16 +12,32 @@ lazy_static! {
 
     pub(crate) static ref EMOJI_FONT: Font = Font::from_bytes(include_bytes!("../emoji.ttf"))
         .expect("failed to load emoji font");
+
+    /// Emoji measurements by (font, grapheme, size). Measuring an emoji means
+    /// shaping it and reading its color glyph, so each one is only done once.
+    static ref EMOJI_METRICS: Mutex<HashMap<(usize, String, u32), Option<SwashMetrics>>> = Mutex::default();
+}
+
+thread_local! {
+    /// swash keeps font and glyph caches in these contexts, so they're reused
+    /// instead of being created for every emoji.
+    static SWASH: RefCell<(swash::scale::ScaleContext, swash::shape::ShapeContext)> =
+        RefCell::new((swash::scale::ScaleContext::new(), swash::shape::ShapeContext::new()));
 }
 
 
+/// Whether a grapheme is drawn with the emoji font: the emoji ranges, anything
+/// asking for emoji presentation (U+FE0F) or a keycap (U+20E3), and the few
+/// emoji outside those ranges that are emoji by default.
 fn is_emoji_grapheme(g: &str) -> bool {
     g.chars().any(|c| {
         matches!(
             c as u32,
             0x1F000..=0x1FAFF |
             0x2600..=0x27BF |
-            0x2300..=0x23FF
+            0x2300..=0x23FF |
+            0xFE0F | 0x20E3 |
+            0x2B50 | 0x2B55 | 0x2B1B | 0x2B1C | 0x25FD | 0x25FE
         )
     })
 }
@@ -35,6 +52,7 @@ pub struct Font(pub Arc<FontInner>);
 
 /// Bounding box + advance for an emoji grapheme, computed via swash since
 /// fontdue can't read glyph outlines out of a color (COLR/CBDT) font.
+#[derive(Debug, Clone, Copy)]
 pub(crate) struct SwashMetrics {
     pub xmin: f32,
     pub ymin: f32,
@@ -73,19 +91,32 @@ impl Font {
     /// can't be used for this because color emoji glyphs typically have no
     /// `glyf` outline data for it to measure -- only COLR/CPAL or embedded
     /// bitmap tables, which fontdue doesn't parse.
+    ///
+    /// Results are cached, so each emoji is measured once per size.
     pub(crate) fn swash_metrics(&self, grapheme: &str, size: f32) -> Option<SwashMetrics> {
-        use swash::scale::{Render, ScaleContext, Source, StrikeWith};
-        use swash::shape::ShapeContext;
+        let key = (self.file_hash(), grapheme.to_string(), size.to_bits());
+        if let Some(metrics) = EMOJI_METRICS.lock().unwrap().get(&key) {
+            return *metrics;
+        }
 
-        let mut scale_context = ScaleContext::new();
+        let metrics = SWASH.with(|contexts| {
+            let mut contexts = contexts.borrow_mut();
+            let (scale_context, shape_context) = &mut *contexts;
+            self.measure_grapheme(scale_context, shape_context, grapheme, size)
+        });
 
-        let mut scaler = scale_context
-            .builder(self.swash_font())
-            .size(size)
-            .hint(false)
-            .build();
+        EMOJI_METRICS.lock().unwrap().insert(key, metrics);
+        metrics
+    }
 
-        let mut shape_context = ShapeContext::new();
+    fn measure_grapheme(
+        &self,
+        scale_context: &mut swash::scale::ScaleContext,
+        shape_context: &mut swash::shape::ShapeContext,
+        grapheme: &str,
+        size: f32,
+    ) -> Option<SwashMetrics> {
+        use swash::scale::{Render, Source, StrikeWith};
 
         let mut shaper = shape_context
             .builder(self.swash_font())
@@ -109,6 +140,24 @@ impl Font {
 
         let glyph_id = glyph_id?;
 
+        let mut scaler = scale_context
+            .builder(self.swash_font())
+            .size(size)
+            .hint(false)
+            .build();
+
+        // A color outline (COLR layers) gives the bounds without rasterizing.
+        // Its y axis points up, like the rendered placement below.
+        if let Some(outline) = scaler.scale_color_outline(glyph_id) {
+            let bounds = outline.bounds();
+            let (width, height) = (bounds.max.x - bounds.min.x, bounds.max.y - bounds.min.y);
+            if width > 0.0 && height > 0.0 {
+                return Some(SwashMetrics { xmin: bounds.min.x, ymin: bounds.min.y, width, height, advance_width });
+            }
+        }
+
+        // Bitmap emoji (or color formats swash can't outline): render the
+        // glyph and use its placement.
         let mut render = Render::new(&[
             Source::ColorBitmap(StrikeWith::BestFit),
             Source::ColorOutline(0),
@@ -482,8 +531,7 @@ impl Text {
                             let (xmin, ymin, w, h, aw) = if is_emoji {
                                 // fontdue can't read outline bounds out of a
                                 // color emoji font, so measure via swash
-                                // instead -- it renders the actual bitmap
-                                // and reports its placement.
+                                // instead (cached per emoji and size).
                                 font.swash_metrics(g, s.font_size)
                                     .map(|m| (m.xmin, m.ymin, m.width, m.height, m.advance_width))
                                     .unwrap_or((0.0, 0.0, 0.0, 0.0, 0.0))
