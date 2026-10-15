@@ -6,41 +6,42 @@ use std::collections::HashMap;
 use std::hash::{DefaultHasher, Hasher, Hash};
 use lazy_static::lazy_static;
 use unicode_segmentation::UnicodeSegmentation;
+use swash::scale::{Render, Source, StrikeWith};
 
 lazy_static! {
     static ref TEXT_LINES: Arc<Mutex<HashMap<u64, Vec<Line>>>> = Arc::default();
 
-    pub(crate) static ref EMOJI_FONT: Font = Font::from_bytes(include_bytes!("../emoji.ttf"))
-        .expect("failed to load emoji font");
-
-    /// Emoji measurements by (font, grapheme, size). Measuring an emoji means
-    /// shaping it and reading its color glyph, so each one is only done once.
+    pub(crate) static ref EMOJI_FONT: Font = Font::from_bytes(include_bytes!("../emoji.ttf")).expect("failed to load emoji font");
     static ref EMOJI_METRICS: Mutex<HashMap<(usize, String, u32), Option<SwashMetrics>>> = Mutex::default();
 }
 
 thread_local! {
-    /// swash keeps font and glyph caches in these contexts, so they're reused
-    /// instead of being created for every emoji.
     static SWASH: RefCell<(swash::scale::ScaleContext, swash::shape::ShapeContext)> =
         RefCell::new((swash::scale::ScaleContext::new(), swash::shape::ShapeContext::new()));
 }
 
+#[derive(Debug, Clone)]
+pub struct Character(
+    pub String,
+    pub (f32, f32, f32, f32),
+    pub Font,
+    pub Option<Color>,
+    pub f32,
+    pub f32,
+);
 
-/// Whether a grapheme is drawn with the emoji font: the emoji ranges, anything
-/// asking for emoji presentation (U+FE0F) or a keycap (U+20E3), and the few
-/// emoji outside those ranges that are emoji by default.
-fn is_emoji_grapheme(g: &str) -> bool {
-    g.chars().any(|c| {
-        matches!(
-            c as u32,
-            0x1F000..=0x1FAFF |
-            0x2600..=0x27BF |
-            0x2300..=0x23FF |
-            0xFE0F | 0x20E3 |
-            0x2B50 | 0x2B55 | 0x2B1B | 0x2B1C | 0x25FD | 0x25FE
-        )
-    })
+#[derive(Debug, Clone, Default)]
+pub(crate) struct Line(pub f32, pub f32, pub Vec<Character>, pub Vec<(usize, f32)>);
+
+impl Line {
+    fn take(&mut self) -> Self {
+        let l = Line(self.0, self.1, self.2.drain(..).collect(), std::mem::take(&mut self.3));
+        self.0 = 0.0;
+        self.1 = 0.0;
+        l
+    }
 }
+
 #[derive(Debug)]
 pub struct FontInner {
     fontdue: fontdue::Font,
@@ -50,8 +51,6 @@ pub struct FontInner {
 #[derive(Debug, Clone)]
 pub struct Font(pub Arc<FontInner>);
 
-/// Bounding box + advance for an emoji grapheme, computed via swash since
-/// fontdue can't read glyph outlines out of a color (COLR/CBDT) font.
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct SwashMetrics {
     pub xmin: f32,
@@ -77,22 +76,11 @@ impl Font {
         })))
     }
 
-    /// Builds a swash `FontRef` borrowing this font's original byte buffer.
-    /// Used for emoji rendering via swash, as opposed to the fontdue path
-    /// used for regular glyph rasterization.
     pub(crate) fn swash_font(&self) -> swash::FontRef<'_> {
         swash::FontRef::from_index(&self.0.bytes, 0)
             .expect("invalid font data")
     }
 
-    /// Shapes and measures a single grapheme (e.g. one emoji, possibly a
-    /// ZWJ sequence) using swash, returning a bounding box comparable to
-    /// fontdue's `OutlineBounds` plus the shaped advance width. fontdue
-    /// can't be used for this because color emoji glyphs typically have no
-    /// `glyf` outline data for it to measure -- only COLR/CPAL or embedded
-    /// bitmap tables, which fontdue doesn't parse.
-    ///
-    /// Results are cached, so each emoji is measured once per size.
     pub(crate) fn swash_metrics(&self, grapheme: &str, size: f32) -> Option<SwashMetrics> {
         let key = (self.file_hash(), grapheme.to_string(), size.to_bits());
         if let Some(metrics) = EMOJI_METRICS.lock().unwrap().get(&key) {
@@ -109,46 +97,27 @@ impl Font {
         metrics
     }
 
-    fn measure_grapheme(
-        &self,
+    fn measure_grapheme(&self,
         scale_context: &mut swash::scale::ScaleContext,
         shape_context: &mut swash::shape::ShapeContext,
-        grapheme: &str,
-        size: f32,
+        grapheme: &str, size: f32,
     ) -> Option<SwashMetrics> {
-        use swash::scale::{Render, Source, StrikeWith};
-
-        let mut shaper = shape_context
-            .builder(self.swash_font())
-            .size(size)
-            .build();
-
+        let mut shaper = shape_context.builder(self.swash_font()).size(size).build();
         shaper.add_str(grapheme);
 
         let mut glyph_id = None;
         let mut advance_width = 0.0_f32;
 
-        shaper.shape_with(|cluster| {
-            for glyph in cluster.glyphs {
-                if glyph_id.is_none() {
-                    glyph_id = Some(glyph.id);
-                }
-
-                advance_width += glyph.advance;
-            }
-        });
-
-        let glyph_id = glyph_id?;
+        shaper.shape_with(|cluster| cluster.glyphs.iter().for_each(|glyph| {
+            if glyph_id.is_none() { glyph_id = Some(glyph.id); }
+            advance_width += glyph.advance;
+        }));
 
         let mut scaler = scale_context
             .builder(self.swash_font())
-            .size(size)
-            .hint(false)
-            .build();
+            .size(size).hint(false).build();
 
-        // A color outline (COLR layers) gives the bounds without rasterizing.
-        // Its y axis points up, like the rendered placement below.
-        if let Some(outline) = scaler.scale_color_outline(glyph_id) {
+        if let Some(outline) = scaler.scale_color_outline(glyph_id.unwrap()) {
             let bounds = outline.bounds();
             let (width, height) = (bounds.max.x - bounds.min.x, bounds.max.y - bounds.min.y);
             if width > 0.0 && height > 0.0 {
@@ -156,29 +125,21 @@ impl Font {
             }
         }
 
-        // Bitmap emoji (or color formats swash can't outline): render the
-        // glyph and use its placement.
-        let mut render = Render::new(&[
+        let image = Render::new(&[
             Source::ColorBitmap(StrikeWith::BestFit),
             Source::ColorOutline(0),
             Source::Outline,
-        ]);
+        ]).render(&mut scaler, glyph_id.unwrap())?;
 
-        let image = render.render(&mut scaler, glyph_id)?;
+        (image.placement.width == 0 || image.placement.height == 0).then(|| {
+            let height = image.placement.height as f32;
 
-        if image.placement.width == 0 || image.placement.height == 0 {
-            return None;
-        }
-
-        let height = image.placement.height as f32;
-        let ymin = image.placement.top as f32 - height;
-
-        Some(SwashMetrics {
-            xmin: image.placement.left as f32,
-            ymin,
-            width: image.placement.width as f32,
-            height,
-            advance_width,
+            SwashMetrics {
+                xmin: image.placement.left as f32,
+                ymin: image.placement.top as f32 - height,
+                width: image.placement.width as f32,
+                height, advance_width,
+            }
         })
     }
 }
@@ -260,9 +221,6 @@ pub struct Text {
     pub spans: Vec<Span>,
     pub width: Option<f32>,
     pub align: Align,
-    /// Byte offset into the text of all spans joined together. Always sits on
-    /// a grapheme boundary when set by `cursor_click`; other values are
-    /// clamped when drawn.
     pub cursor: Option<usize>,
     pub max_lines: Option<u32>,
 }
@@ -270,20 +228,10 @@ pub struct Text {
 impl Hash for Text {
     fn hash<H: Hasher>(&self, hasher: &mut H) {
         self.spans.hash(hasher);
-
-        if let Some(w) = self.width {
-            w.to_bits().hash(hasher);
-        }
-
+        if let Some(w) = self.width { w.to_bits().hash(hasher); }
         self.align.hash(hasher);
-
-        if let Some(c) = self.cursor {
-            c.hash(hasher);
-        }
-
-        if let Some(max) = self.max_lines {
-            max.hash(hasher);
-        }
+        if let Some(c) = self.cursor { c.hash(hasher); }
+        if let Some(max) = self.max_lines { max.hash(hasher); }
     }
 }
 
@@ -313,77 +261,30 @@ impl Text {
         });
     }
 
-    /// Width and height of the laid-out text. When the text ends with a
-    /// newline, the height includes the empty line below it, where the caret
-    /// sits (see `locate`), so whatever holds this text is tall enough for it.
     pub fn size(&self) -> (f32, f32) {
-        let lines = self.lines();
-        let (w, h) = lines
-            .iter()
-            .fold((0.0_f32, 0.0_f32), |(w, h), line| {
-                (w.max(line.0), h + line.1)
+        let (w, h) = self.lines().iter().fold((0.0_f32, 0.0_f32), |(w, h), line| {
+            (w.max(line.0), h + line.1)
+        });
+
+        if self.ends_with_newline() && 
+        self.max_lines.is_none_or(|max| self.lines().len() < max as usize) {
+            let h = h + self.spans.iter().rev().find(|s| !s.text.is_empty()).map_or(0.0, |s| {
+                s.line_height.unwrap_or_else(|| {
+                    s.font.horizontal_line_metrics(s.font_size).map_or(0.0, |m| m.new_line_size)
+                })
             });
 
-        let fits = self.max_lines.is_none_or(|max| lines.len() < max as usize);
-        if self.ends_with_newline() && fits {
-            (w, h + self.trailing_line_height())
-        } else {
             (w, h)
-        }
+        } else {(w, h)}
     }
 
-    /// Height of the empty line after a trailing newline: the line height of
-    /// the last non-empty span.
-    fn trailing_line_height(&self) -> f32 {
-        self.spans.iter().rev().find(|s| !s.text.is_empty()).map_or(0.0, |s| {
-            s.line_height.unwrap_or_else(|| {
-                s.font.horizontal_line_metrics(s.font_size).map_or(0.0, |m| m.new_line_size)
-            })
-        })
-    }
-
-    /// Top-left of the caret for `self.cursor`: x is the pen position, y is
-    /// the top of the caret's line. Returns `(0.0, 0.0)` when there's no cursor.
-    ///
-    /// Every grapheme boundary maps to exactly one place:
-    /// - at a wrapped line break, the caret is at the start of the next line;
-    /// - in whitespace skipped at a wrap, it's at the end of the line above;
-    /// - after a trailing newline, it's on the empty line below the text.
     pub fn cursor_position(&self) -> (f32, f32) {
-        let Some(cursor) = self.cursor else { return (0.0, 0.0) };
-        let (_, x, top) = self.locate(&self.lines(), cursor);
-        (x, top)
+        self.cursor.map(|cursor| {
+            let (_, x, top) = self.locate(&self.lines(), cursor);
+            (x, top)
+        }).unwrap_or((0.0, 0.0))
     }
 
-    /// Moves the cursor to the nearest position on the line above or below.
-    /// Up on the first line goes to the start, down on the last to the end.
-    pub fn move_cursor_vertically(&mut self, down: bool) {
-        let Some(cursor) = self.cursor else { return };
-        let lines = self.lines();
-        let (line, x, _) = self.locate(&lines, cursor);
-
-        let target = match (down, line.checked_sub(1)) {
-            (true, _) => line + 1,
-            (false, Some(above)) => above,
-            (false, None) => { self.cursor = Some(0); return; }
-        };
-
-        // Past the last line: the end of the text (which is the empty line
-        // after a trailing newline, when there is one).
-        let Some(target) = lines.get(target) else {
-            self.cursor = Some(self.text_len());
-            return;
-        };
-
-        let nearest = target.3.iter()
-            .min_by(|a, b| (a.1 - x).abs().total_cmp(&(b.1 - x).abs()))
-            .map(|&(byte, _)| byte);
-
-        if let Some(byte) = nearest { self.cursor = Some(byte); }
-    }
-
-    /// The caret's line index, x and line top for `cursor`. The index
-    /// `lines.len()` is the empty line after a trailing newline.
     fn locate(&self, lines: &[Line], cursor: usize) -> (usize, f32, f32) {
         let cursor = cursor.min(self.text_len());
 
@@ -391,8 +292,6 @@ impl Text {
             return (lines.len(), self.empty_line_x(), lines.iter().map(|l| l.1).sum());
         }
 
-        // Stops increase across lines, so the caret is at the last stop
-        // at or before the cursor.
         let mut top = 0.0;
         let mut found = None;
         for (i, line) in lines.iter().enumerate() {
@@ -406,8 +305,6 @@ impl Text {
         found.unwrap_or((0, self.empty_line_x(), 0.0))
     }
 
-    /// Moves the cursor to the grapheme boundary nearest to `(x, y)`, in the
-    /// same coordinates as `cursor_position`.
     pub fn cursor_click(&mut self, x: f32, y: f32) {
         let lines = self.lines();
         let height: f32 = lines.iter().map(|l| l.1).sum();
@@ -417,7 +314,6 @@ impl Text {
             return;
         }
 
-        // The line under `y`, clamped to the first and last lines.
         let mut top = 0.0;
         let mut target = &lines[lines.len() - 1];
         for line in &lines {
@@ -425,14 +321,13 @@ impl Text {
             top += line.1;
         }
 
-        let nearest = target.3.iter()
-            .min_by(|a, b| (a.1 - x).abs().total_cmp(&(b.1 - x).abs()))
-            .map(|&(byte, _)| byte);
-
-        if let Some(byte) = nearest { self.cursor = Some(byte); }
+        if let Some(byte) = target.3.iter()
+        .min_by(|a, b| (a.1 - x).abs().total_cmp(&(b.1 - x).abs()))
+        .map(|&(byte, _)| byte) {
+            self.cursor = Some(byte);
+        }
     }
 
-    /// Length in bytes of all spans joined; the largest valid cursor.
     pub fn text_len(&self) -> usize {
         self.spans.iter().map(|s| s.text.len()).sum()
     }
@@ -442,7 +337,6 @@ impl Text {
             .is_some_and(|s| s.text.ends_with('\n'))
     }
 
-    /// The x where a caret sits on an empty line, given the alignment.
     fn empty_line_x(&self) -> f32 {
         match self.align {
             Align::Left => 0.0,
@@ -451,63 +345,46 @@ impl Text {
         }
     }
 
-    pub fn len(&self) -> usize {
-        self.lines().len()
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.len() == 0
-    }
+    pub fn len(&self) -> usize { self.lines().len() }
+    pub fn is_empty(&self) -> bool { self.len() == 0 }
 
     pub(crate) fn lines(&self) -> Vec<Line> {
-        // The cursor doesn't affect layout, so it's left out of the cache key;
-        // otherwise every cursor move would lay the text out again.
         let mut hasher = DefaultHasher::new();
         self.spans.hash(&mut hasher);
         self.width.map(f32::to_bits).hash(&mut hasher);
         self.align.hash(&mut hasher);
         self.max_lines.hash(&mut hasher);
 
-        TEXT_LINES
-            .lock()
-            .unwrap()
-            .entry(hasher.finish())
-            .or_insert_with(|| self.inner_lines())
-            .clone()
+        TEXT_LINES.lock().unwrap().entry(hasher.finish())
+            .or_insert_with(|| self.inner_lines()).clone()
     }
 
     pub(crate) fn inner_lines(&self) -> Vec<Line> {
         let mut lines = Vec::new();
         let mut line = Line::default();
+        let (mut line_start, mut line_end) = (0, 0);
 
-        // Byte offsets into all spans joined: where the current line starts
-        // (used for the caret on an empty line) and where its last laid-out
-        // grapheme ends (used for the caret at the end of the line).
-        let mut line_start = 0usize;
-        let mut line_end = 0usize;
-
-        // Ends the current line, giving it a caret stop at its end (or one
-        // stop at its start if it's empty), and starts the next line at `next`.
-        let push = |lines: &mut Vec<Line>, line: &mut Line, lh: f32, line_start: &mut usize, line_end: usize, next: usize| {
+        let push = |lines: &mut Vec<Line>, line: &mut Line, lh: f32,
+                    start: &mut usize, end: usize, next: usize| {
             if line.2.is_empty() {
                 line.1 = line.1.max(lh);
-                line.3 = vec![(*line_start, 0.0)];
+                line.3 = vec![(*start, 0.0)];
             } else {
-                line.3.push((line_end, line.0));
+                line.3.push((end, line.0));
             }
 
             line.2.iter_mut().for_each(|ch| ch.1 .1 += line.1);
             lines.push(line.take());
-            *line_start = next;
+            *start = next;
         };
 
-        let mut span_start = 0usize;
-        let mut soft_wrapped = false;
+        let (mut span_start, mut soft_wrapped) = (0, false);
+
         for s in &self.spans {
             let lm = s.font.horizontal_line_metrics(s.font_size).unwrap();
             let lh = s.line_height.unwrap_or(lm.new_line_size);
-
             let mut raw_start = span_start;
+
             for (i, raw) in s.text.split('\n').enumerate() {
                 if i > 0 {
                     push(&mut lines, &mut line, lh, &mut line_start, line_end, raw_start);
@@ -515,57 +392,33 @@ impl Text {
                 }
 
                 let mut word_start = raw_start;
+
                 for word in raw.split_inclusive(char::is_whitespace) {
                     let mut ww = 0.0;
 
-                    let glyphs: Vec<_> = UnicodeSegmentation::grapheme_indices(word, true)
-                        .map(|(gi, g)| {
-                            let is_emoji = is_emoji_grapheme(g);
+                    let glyphs: Vec<_> = UnicodeSegmentation::grapheme_indices(word, true).map(|(gi, g)| {
+                            let emoji = is_emoji_grapheme(g);
+                            let font = if emoji { EMOJI_FONT.clone() } else { s.font.clone() };
 
-                            let font = if is_emoji {
-                                EMOJI_FONT.clone()
-                            } else {
-                                s.font.clone()
-                            };
-
-                            let (xmin, ymin, w, h, aw) = if is_emoji {
-                                // fontdue can't read outline bounds out of a
-                                // color emoji font, so measure via swash
-                                // instead (cached per emoji and size).
+                            let (xmin, ymin, w, h, aw) = if emoji {
                                 font.swash_metrics(g, s.font_size)
                                     .map(|m| (m.xmin, m.ymin, m.width, m.height, m.advance_width))
-                                    .unwrap_or((0.0, 0.0, 0.0, 0.0, 0.0))
+                                    .unwrap_or_default()
                             } else {
-                                let mut aw = 0.0_f32;
-                                let mut xmin = 0.0_f32;
-                                let mut ymin = 0.0_f32;
-                                let mut xmax = 0.0_f32;
-                                let mut ymax = 0.0_f32;
-                                let mut first = true;
+                                let (mut aw, mut xmin, mut ymin, mut xmax, mut ymax) = (0.0_f32, 0.0, 0.0, 0.0, 0.0);
 
-                                for c in g.chars() {
+                                g.chars().enumerate().for_each(|(i, c)| {
                                     let m = font.metrics(c, s.font_size);
+                                    let x = aw + m.bounds.xmin;
+                                    let y = m.bounds.ymin;
 
-                                    let gxmin = aw + m.bounds.xmin;
-                                    let gymin = m.bounds.ymin;
-                                    let gxmax = gxmin + m.bounds.width;
-                                    let gymax = gymin + m.bounds.height;
-
-                                    if first {
-                                        xmin = gxmin;
-                                        ymin = gymin;
-                                        xmax = gxmax;
-                                        ymax = gymax;
-                                        first = false;
-                                    } else {
-                                        xmin = xmin.min(gxmin);
-                                        ymin = ymin.min(gymin);
-                                        xmax = xmax.max(gxmax);
-                                        ymax = ymax.max(gymax);
-                                    }
+                                    xmin = if i == 0 { x } else { xmin.min(x) };
+                                    ymin = if i == 0 { y } else { ymin.min(y) };
+                                    xmax = if i == 0 { x + m.bounds.width } else { xmax.max(x + m.bounds.width) };
+                                    ymax = if i == 0 { y + m.bounds.height } else { ymax.max(y + m.bounds.height) };
 
                                     aw += m.advance_width;
-                                }
+                                });
 
                                 (xmin, ymin, xmax - xmin, ymax - ymin, aw)
                             };
@@ -573,17 +426,11 @@ impl Text {
                             ww += aw + s.kerning;
 
                             (
-                                word_start + gi,
-                                g.len(),
-                                g.to_string(),
-                                font,
-                                (xmin, ymin, w, h),
-                                aw,
-                                g.chars().all(char::is_whitespace),
-                                is_emoji,
+                                word_start + gi, g.len(), g.to_string(), font,
+                                (xmin, ymin, w, h), aw,
+                                g.chars().all(char::is_whitespace), emoji,
                             )
-                        })
-                        .collect();
+                        }).collect();
 
                     if let Some(wmax) = self.width
                         && ww < wmax
@@ -594,39 +441,29 @@ impl Text {
                         push(&mut lines, &mut line, lh, &mut line_start, line_end, word_start);
                     }
 
-                    for (byte, len, g, font, (xmin, ymin, w, h), aw, is_whitespace, is_emoji) in glyphs {
+                    for (byte, len, g, font, (xmin, ymin, w, h), aw, whitespace, emoji) in glyphs {
                         if let Some(wmax) = self.width {
                             if line.0 + aw + s.kerning > wmax && !line.2.is_empty() {
                                 push(&mut lines, &mut line, lh, &mut line_start, line_end, byte);
                                 soft_wrapped = true;
                             }
 
-                            // Whitespace at the start of a wrapped line isn't drawn,
-                            // so the line effectively starts after it.
-                            if soft_wrapped && line.2.is_empty() && is_whitespace {
+                            if soft_wrapped && line.2.is_empty() && whitespace {
                                 line_start = byte + len;
                                 continue;
                             }
                         }
 
-                        let y = lines.iter().fold(0.0, |h, l| h + l.1) - ymin - h + lm.descent;
+                        let y = lines.iter().map(|l| l.1).sum::<f32>() - ymin - h + lm.descent;
 
-                        // Regular glyphs are cached as alpha-only masks and
-                        // rely on this color to tint them. Emoji are cached
-                        // as already-colored bitmaps (from swash/CBDT), so
-                        // tinting them would overwrite their real color --
-                        // pass None to signal "use the texture as-is".
-                        let color = if is_emoji { None } else { Some(s.color) };
-
-                        // A caret stop before this grapheme, at the pen position.
                         line.3.push((byte, line.0));
                         line_end = byte + len;
 
                         line.2.push(Character(
-                            g.clone(),
+                            g,
                             (line.0 + xmin, y, w, h),
                             font,
-                            color,
+                            (!emoji).then_some(s.color),
                             lh,
                             aw,
                         ));
@@ -648,18 +485,15 @@ impl Text {
             push(&mut lines, &mut line, 0.0, &mut line_start, line_end, line_end);
         }
 
-        // Where a line wraps with nothing skipped, its end and the next line's
-        // start are the same byte. Keep only the next line's stop, so each
-        // boundary has exactly one caret position.
+        // Remove duplicate caret stops at wrapped boundaries.
         for i in 1..lines.len() {
-            let next_start = lines[i].3.first().map(|c| c.0);
+            let next = lines[i].3.first().map(|c| c.0);
             let prev = &mut lines[i - 1].3;
-            if prev.len() > 1 && prev.last().map(|c| c.0) == next_start {
-                prev.pop();
-            }
+            if prev.len() > 1 && prev.last().map(|c| c.0) == next { prev.pop(); }
         }
 
-        lines.iter_mut().for_each(|line| {
+        // Align lines.
+        for line in &mut lines {
             let offset = match self.align {
                 Align::Left => 0.0,
                 Align::Center => self.width.map_or(0.0, |w| (w - line.0) / 2.0),
@@ -669,19 +503,18 @@ impl Text {
             line.2.iter_mut().for_each(|ch| ch.1 .0 += offset);
             line.3.iter_mut().for_each(|stop| stop.1 += offset);
             line.0 += offset;
-        });
+        }
 
+        // Truncate and append ellipsis.
         if let Some(max) = self.max_lines {
-            let len = lines.len();
+            let overflow = lines.len() > max as usize;
             lines.truncate(max as usize);
 
-            if len > max as usize {
-                let y = lines.iter().fold(0.0, |h, l| h + l.1);
+            if overflow {
+                let y = lines.iter().map(|l| l.1).sum::<f32>();
 
                 if let Some(last) = lines.last_mut() {
                     last.2.truncate(last.2.len().saturating_sub(3));
-                    // Keep the stops before each remaining grapheme plus one at
-                    // the ellipsis; hidden text has no caret positions.
                     last.3.truncate(last.2.len() + 1);
 
                     let s = &self.spans[0];
@@ -717,26 +550,18 @@ impl Text {
 
         lines
     }
+
 }
 
-#[derive(Debug, Clone)]
-pub struct Character(
-    pub String,
-    pub (f32, f32, f32, f32),
-    pub Font,
-    pub Option<Color>,
-    pub f32,
-    pub f32,
-);
-
-#[derive(Debug, Clone, Default)]
-pub(crate) struct Line(pub f32, pub f32, pub Vec<Character>, pub Vec<(usize, f32)>);
-
-impl Line {
-    fn take(&mut self) -> Self {
-        let l = Line(self.0, self.1, self.2.drain(..).collect(), std::mem::take(&mut self.3));
-        self.0 = 0.0;
-        self.1 = 0.0;
-        l
-    }
+pub fn is_emoji_grapheme(g: &str) -> bool {
+    g.chars().any(|c| {
+        matches!(
+            c as u32,
+            0x1F000..=0x1FAFF |
+            0x2600..=0x27BF |
+            0x2300..=0x23FF |
+            0xFE0F | 0x20E3 |
+            0x2B50 | 0x2B55 | 0x2B1B | 0x2B1C | 0x25FD | 0x25FE
+        )
+    })
 }
